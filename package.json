@@ -1,0 +1,79 @@
+{
+  "name": "@ochairo/beat",
+  "version": "0.2.0",
+  "description": "Pulse-native SPA runtime for DOM-first applications",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "default": "./dist/jsx-dev-runtime.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./vite-plugin": {
+      "types": "./dist/vite-plugin.d.ts",
+      "default": "./dist/vite-plugin.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "!dist/**/*.test.*",
+    "!dist/**/*.map"
+  ],
+  "scripts": {
+    "benchmark": "pnpm --dir ../pulse build && pnpm build && node ./benchmarks/runtime.mjs",
+    "benchmark:report": "pnpm --dir ../pulse build && pnpm build && node ./benchmarks/report.mjs",
+    "benchmark:report:all": "pnpm benchmark:report && pnpm sample:report",
+    "build": "pnpm clean && tsc && pnpm build:minify",
+    "build:minify": "esbuild dist/index.js --outdir=dist --format=esm --allow-overwrite --minify --legal-comments=none --tree-shaking=true",
+    "sample": "pnpm --dir sample/beat dev",
+    "sample:beat": "pnpm --dir sample/beat dev",
+    "sample:backend": "pnpm --dir sample/backend dev",
+    "sample:react": "pnpm --dir sample/react dev",
+    "sample:solid": "pnpm --dir sample/solid dev",
+    "sample:build": "pnpm --dir sample/beat build && pnpm --dir sample/react build && pnpm --dir sample/solid build",
+    "sample:report": "pnpm --dir sample/backend report",
+    "sample:serve": "pnpm --dir sample/backend serve",
+    "sample:test:performance": "pnpm sample:report",
+    "sample:test:performance:raw": "pnpm --dir sample/backend test:performance",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "validate": "pnpm test && pnpm typecheck && pnpm build",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "beat",
+    "pulse",
+    "spa",
+    "dom",
+    "ochairo"
+  ],
+  "author": "ochairo",
+  "license": "MIT",
+  "dependencies": {
+    "@ochairo/pulse": "file:../pulse"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "esbuild": "^0.27.2",
+    "happy-dom": "^20.0.7",
+    "typescript": "^5.3.3",
+    "vite": "^7.1.9",
+    "vitest": "^4.0.15"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}
