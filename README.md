@@ -19,8 +19,7 @@ Start a new app with the scaffolder:
 pnpm create @ochairo/create-beat my-app --template router
 ```
 
-That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin.
-with routing support.
+That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin with routing support.
 
 ## Quick Start
 
@@ -60,7 +59,6 @@ export const App = component(() => {
 
 - [Getting Started](./docs/GETTING_STARTED.md)
 - [Existing App Setup](./docs/EXISTING_APP.md)
-- [Motivation](./docs/MOTIVATION.md)
 - [API](./docs/API.md)
 - [Compiler Contract](./docs/COMPILER.md)
 - [Support Policy](./docs/SUPPORT.md)
