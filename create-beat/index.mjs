@@ -7,7 +7,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createInterface } from "node:readline/promises";
 
-const BEAT_VERSION = "^1.0.1";
+const BEAT_VERSION = "^1.0.2";
 const PULSE_VERSION = "^1.0.7";
 const VITE_VERSION = "^7.1.9";
 const TYPESCRIPT_VERSION = "^5.3.3";
@@ -320,37 +320,44 @@ function createIndexHtml(packageName) {
 }
 
 function createPackageJson(packageName, targetDirectory) {
-  const dependencies = resolveDependencyVersions(targetDirectory);
-
-  return `${JSON.stringify(
-    {
-      name: packageName,
-      private: true,
-      type: "module",
-      scripts: {
-        dev: "vite",
-        build: "vite build",
-        preview: "vite preview",
-        typecheck: "tsc --noEmit",
-      },
-      dependencies,
-      devDependencies: {
-        typescript: TYPESCRIPT_VERSION,
-        vite: VITE_VERSION,
-      },
-      engines: {
-        node: ">=24.0.0 <25.0.0",
-        pnpm: ">=10.0.0",
-      },
+  const localWorkspacePackages = findLocalWorkspacePackages(targetDirectory);
+  const dependencies = resolveDependencyVersions(
+    localWorkspacePackages,
+    targetDirectory,
+  );
+  const packageJson = {
+    name: packageName,
+    private: true,
+    type: "module",
+    scripts: {
+      dev: "vite",
+      build: "vite build",
+      preview: "vite preview",
+      typecheck: "tsc --noEmit",
     },
-    null,
-    2,
-  )}\n`;
+    dependencies,
+    devDependencies: {
+      typescript: TYPESCRIPT_VERSION,
+      vite: VITE_VERSION,
+    },
+    engines: {
+      node: ">=24.0.0 <25.0.0",
+      pnpm: ">=10.0.0",
+    },
+  };
+
+  if (localWorkspacePackages) {
+    packageJson.pnpm = {
+      overrides: {
+        "@ochairo/pulse": `file:${toPortableRelativePath(targetDirectory, localWorkspacePackages.pulseDirectory)}`,
+      },
+    };
+  }
+
+  return `${JSON.stringify(packageJson, null, 2)}\n`;
 }
 
-function resolveDependencyVersions(targetDirectory) {
-  const localWorkspacePackages = findLocalWorkspacePackages(targetDirectory);
-
+function resolveDependencyVersions(localWorkspacePackages, targetDirectory) {
   if (localWorkspacePackages) {
     return {
       "@ochairo/beat": `file:${toPortableRelativePath(targetDirectory, localWorkspacePackages.beatDirectory)}`,
@@ -490,7 +497,7 @@ function createViteConfig() {
 
 function createStarterAppSource() {
   return [
-    'import { component } from "@ochairo/beat";',
+    'import { bindText, component } from "@ochairo/beat";',
     'import { pulse } from "@ochairo/pulse";',
     "",
     "const counter = pulse(0);",
@@ -520,7 +527,7 @@ function createStarterAppSource() {
     '                  <button class="counter-stepper__button" onClick={() => counter.set(counter.get() - 1)}>',
     "                    -",
     "                  </button>",
-    '                  <strong class="counter-stepper__value">{counter}</strong>',
+    '                  <strong class="counter-stepper__value">{bindText(counter)}</strong>',
     '                  <button class="counter-stepper__button" onClick={() => counter.set(counter.get() + 1)}>',
     "                    +",
     "                  </button>",
@@ -701,8 +708,18 @@ function createRouterAppSource() {
 
 function createRouterSource() {
   return [
-    'import { createRouter } from "@ochairo/beat";',
+    'import { createRouter, type BeatRouteMatch } from "@ochairo/beat";',
     'import { HomePage } from "./routes/home-page";',
+    "",
+    "interface AboutRouteData {",
+    "  readonly title: string;",
+    "  readonly summary: string;",
+    "  readonly notes: readonly string[];",
+    "}",
+    "",
+    "function getAboutRouteData(match: BeatRouteMatch): AboutRouteData | undefined {",
+    "  return match.data as AboutRouteData | undefined;",
+    "}",
     "",
     "export const router = createRouter({",
     "  routes: [",
@@ -726,18 +743,20 @@ function createRouterSource() {
     "        };",
     "      },",
     "      view(match) {",
+    "        const data = getAboutRouteData(match);",
+    "",
     "        return (",
     '          <section class="route-stack">',
     '            <p class="eyebrow">About</p>',
-    '            <h2>{match.data?.title ?? "Loading route data"}</h2>',
+    '            <h2>{data?.title ?? "Loading route data"}</h2>',
     '            <p class="panel-copy">',
-    '              {match.data?.summary ?? "The loader is resolving the route payload."}',
+    '              {data?.summary ?? "The loader is resolving the route payload."}',
     "            </p>",
     "            {match.error ? (",
     '              <p class="status-line status-line--error">Route failed to load.</p>',
     "            ) : null}",
     '            <ul class="info-list">',
-    "              {(match.data?.notes ?? []).map((note) => (",
+    "              {(data?.notes ?? []).map((note: string) => (",
     '                <li class="info-item">',
     "                  <strong>{note}</strong>",
     "                </li>",
@@ -755,7 +774,7 @@ function createRouterSource() {
 
 function createHomePageSource() {
   return [
-    'import { component } from "@ochairo/beat";',
+    'import { bindText, component } from "@ochairo/beat";',
     'import { pulse } from "@ochairo/pulse";',
     "",
     "const counter = pulse(0);",
@@ -771,7 +790,7 @@ function createHomePageSource() {
     '            <button class="counter-stepper__button" onClick={() => counter.set(counter.get() - 1)}>',
     "              -",
     "            </button>",
-    '            <strong class="counter-stepper__value">{counter}</strong>',
+    '            <strong class="counter-stepper__value">{bindText(counter)}</strong>',
     '            <button class="counter-stepper__button" onClick={() => counter.set(counter.get() + 1)}>',
     "              +",
     "            </button>",
@@ -787,18 +806,26 @@ function createHomePageSource() {
 
 function createSearchPanelSource() {
   return [
-    'import { Show, component, createResource, onCleanup } from "@ochairo/beat";',
+    'import { Show, bindText, component, createResource, onCleanup } from "@ochairo/beat";',
     'import { pulse } from "@ochairo/pulse";',
     "",
-    "const resultMap = {",
+    'type SearchTopic = "beat" | "router" | "resource";',
+    "",
+    "interface SearchResult {",
+    "  readonly heading: string;",
+    "  readonly summary: string;",
+    "  readonly items: readonly string[];",
+    "}",
+    "",
+    "const resultMap: Record<SearchTopic, readonly string[]> = {",
     '  beat: ["Route shell", "Loader data", "Direct DOM updates"],',
     '  router: ["Link prefetch", "Outlet composition", "Exact route matching"],',
     '  resource: ["Explicit status", "Reload controls", "Deterministic cleanup"],',
     "};",
     "",
     "export const SearchPanel = component(() => {",
-    '  const query = pulse("beat");',
-    "  const resource = createResource({",
+    '  const query = pulse<SearchTopic>("beat");',
+    "  const resource = createResource<SearchTopic, SearchResult>({",
     "    source: query,",
     "    immediate: true,",
     "    getCacheKey(value) {",
@@ -840,19 +867,21 @@ function createSearchPanelSource() {
     "          </button>",
     "        </div>",
     "      </div>",
-    '      <p class="status-line">Status: {resource.state.status}</p>',
+    '      <p class="status-line">Status: {bindText(resource.state.status)}</p>',
     '      <Show when={resource.state.data} fallback={<p class="panel-copy">Loading resource data.</p>}>',
     "        {(data) => (",
-    '          <div class="results-list">',
-    "            <strong>{data.heading}</strong>",
-    '            <ul class="info-list">',
-    "              {data.items.map((item) => (",
-    '                <li class="info-item">',
-    "                  <strong>{item}</strong>",
-    "                </li>",
-    "              ))}",
-    "            </ul>",
-    "          </div>",
+    "          data ? (",
+    '            <div class="results-list">',
+    "              <strong>{data.heading}</strong>",
+    '              <ul class="info-list">',
+    "                {data.items.map((item: string) => (",
+    '                  <li class="info-item">',
+    "                    <strong>{item}</strong>",
+    "                  </li>",
+    "                ))}",
+    "              </ul>",
+    "            </div>",
+    "          ) : null",
     "        )}",
     "      </Show>",
     "    </section>",

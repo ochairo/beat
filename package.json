@@ -1,6 +1,6 @@
 {
   "name": "@ochairo/beat",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Pulse-native SPA runtime for DOM-first applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,6 +36,7 @@
     "benchmark:report": "pnpm benchmark:prepare && node ./benchmarks/report.mjs",
     "build": "pnpm clean && tsc && pnpm build:minify",
     "build:minify": "esbuild dist/index.js --outdir=dist --format=esm --allow-overwrite --minify --legal-comments=none --tree-shaking=true",
+    "test:scaffold": "node ./scripts/scaffold-smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",

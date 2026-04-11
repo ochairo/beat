@@ -78,7 +78,7 @@ describe("create-beat", () => {
     );
     const srcEntries = await readdir(join(targetDirectory, "src"));
 
-    expect(packageJson).toContain('"@ochairo/beat": "^1.0.1"');
+    expect(packageJson).toContain('"@ochairo/beat": "^1.0.2"');
     expect(packageJson).toContain('"@ochairo/pulse": "^1.0.7"');
     expect(packageJson).toContain('"preview": "vite preview"');
     expect(readme).toContain("Starter app scaffolded with `create-beat`.");
@@ -157,6 +157,8 @@ describe("create-beat", () => {
     expect(appSource).toContain("A small app with room to grow.");
     expect(appSource).toContain("Counter");
     expect(routerSource).toContain("export const router = createRouter(");
+    expect(routerSource).toContain("interface AboutRouteData {");
+    expect(routerSource).toContain("const data = getAboutRouteData(match);");
     expect(routerSource).toContain('path: "/about"');
     expect(routerSource).toContain('title: "About Beat"');
     expect(routerSource).toContain(
@@ -169,17 +171,20 @@ describe("create-beat", () => {
       'class="counter-stepper__button" onClick={() => counter.set(counter.get() - 1)}',
     );
     expect(homePageSource).toContain(
-      'class="counter-stepper__value">{counter}</strong>',
+      'class="counter-stepper__value">{bindText(counter)}</strong>',
     );
     expect(homePageSource).toContain(
       'class="counter-stepper__button" onClick={() => counter.set(counter.get() + 1)}',
     );
-    expect(resourceSource).toContain("createResource({");
+    expect(resourceSource).toContain(
+      "createResource<SearchTopic, SearchResult>({",
+    );
+    expect(resourceSource).toContain("bindText(resource.state.status)");
     expect(resourceSource).toContain(
       '<Show when={resource.state.data} fallback={<p class="panel-copy">Loading resource data.</p>}>',
     );
     expect(resourceSource).toContain("Search demo");
-    expect(resourceSource).toContain("{data.items.map((item) => (");
+    expect(resourceSource).toContain("{data.items.map((item: string) => (");
   });
 
   it("uses local file dependencies only when workspace packages are available", async () => {
@@ -221,11 +226,17 @@ describe("create-beat", () => {
       expect(packageJson).toContain(
         `"@ochairo/pulse": "file:${expectedPulsePath}"`,
       );
+      expect(packageJson).toContain('"pnpm": {');
+      expect(packageJson).toContain('"overrides": {');
+      expect(packageJson).toContain(
+        `"@ochairo/pulse": "file:${expectedPulsePath}"`,
+      );
       return;
     }
 
-    expect(packageJson).toContain('"@ochairo/beat": "^1.0.1"');
+    expect(packageJson).toContain('"@ochairo/beat": "^1.0.2"');
     expect(packageJson).toContain('"@ochairo/pulse": "^1.0.7"');
+    expect(packageJson).not.toContain('"pnpm": {');
   });
 
   it("finds local workspace packages from target ancestors when running from a published install", async () => {
@@ -249,7 +260,7 @@ describe("create-beat", () => {
 
     await writeFile(
       join(beatDirectory, "package.json"),
-      JSON.stringify({ name: "@ochairo/beat", version: "1.0.1" }, null, 2),
+      JSON.stringify({ name: "@ochairo/beat", version: "1.0.2" }, null, 2),
     );
     await writeFile(
       join(pulseDirectory, "package.json"),
@@ -295,5 +306,7 @@ describe("create-beat", () => {
     expect(packageJson).toContain(
       `"@ochairo/pulse": "file:${expectedPulsePath}"`,
     );
+    expect(packageJson).toContain('"pnpm": {');
+    expect(packageJson).toContain('"overrides": {');
   });
 });

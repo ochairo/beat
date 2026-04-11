@@ -58,8 +58,8 @@ jobs:
       - name: Run Beat validation
         run: pnpm validate
 
-      - name: Run create-beat scaffold tests
-        run: pnpm exec vitest run tests/create-beat.test.ts
+      - name: Run scaffold integration smoke test
+        run: pnpm test:scaffold
 
       - name: Verify Beat package can be packed
         run: npm pack --dry-run

@@ -2,6 +2,12 @@
 
 All notable changes to Beat are documented in this file.
 
+## 1.0.2
+
+- fixes the router starter runtime bug caused by unsupported JSX child handling in the counter view
+- adds strict TypeScript-safe router starter source and a scaffold smoke test that installs and typechecks generated router apps
+- keeps Beat and `@ochairo/create-beat` aligned for the next publish
+
 ## 1.0.1
 
 - aligns Beat with the `create-beat@1.0.1` release after the scoped publish and local-workspace scaffolding fixes
