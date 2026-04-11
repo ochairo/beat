@@ -16,16 +16,11 @@ _Fine-grained rendering, explicit routing, explicit async state._
 Start a new app with the scaffolder:
 
 ```sh
-pnpm create @ochairo/create-beat my-app
+pnpm create @ochairo/create-beat my-app --template router
 ```
 
 That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin.
-
-For the router starter:
-
-```sh
-pnpm create @ochairo/create-beat my-app --template router
-```
+with routing support.
 
 ## Quick Start
 
