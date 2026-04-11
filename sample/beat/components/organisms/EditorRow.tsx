@@ -3,30 +3,41 @@ import { component, onCleanup, type BeatCleanup } from "@ochairo/beat";
 import type { Pulse } from "@ochairo/pulse";
 import type { MarketRow, RowClassState } from "../../types.js";
 import {
+  applyRowClassState,
   applyRowState,
   bindMarketRow,
   disposeCleanups,
   getRowClassName,
+  readHeatWidth,
   registerCleanup,
 } from "../../lib/dom-bindings.js";
-import { formatInteger, formatPercent } from "../../lib/format.js";
+import {
+  formatFixed2,
+  formatInteger,
+  formatPercent,
+} from "../../lib/format.js";
 
 interface EditorRowProps {
+  readonly onHoverRow?: (rowId: number) => void;
   readonly row: Pulse<MarketRow>;
 }
 
 export const EditorRow = component<EditorRowProps>((props) => {
   const currentRow = props.row.get();
+  const initialClassName = getRowClassName("market-editor", currentRow);
   const cleanups: BeatCleanup[] = [];
   const classState: RowClassState = {
+    baseClassName: "market-editor",
     focused: currentRow.focused,
+    heatWidth: readHeatWidth(currentRow.heat),
     positiveChange: currentRow.change >= 0,
   };
   const fieldState = {
-    priceText: currentRow.price.toFixed(2),
+    priceText: formatFixed2(currentRow.price),
     changeText: formatPercent(currentRow.change),
     volumeText: formatInteger(currentRow.volume),
     tradesText: formatInteger(currentRow.trades),
+    heatText: currentRow.heat.toString(),
     focused: currentRow.focused,
   };
   let editorElement: HTMLElement | undefined;
@@ -62,63 +73,98 @@ export const EditorRow = component<EditorRowProps>((props) => {
     const boundHeatInput = heatInput;
     const boundFocusedInput = focusedInput;
     const boundFieldState = fieldState;
+
+    const setPriceText = (value: number): void => {
+      const nextPriceText = formatFixed2(value);
+
+      if (nextPriceText !== boundFieldState.priceText) {
+        boundFieldState.priceText = nextPriceText;
+        boundPriceInput.value = nextPriceText;
+      }
+    };
+
+    const setChangeText = (value: number): void => {
+      const nextChangeText = formatPercent(value);
+
+      if (nextChangeText !== boundFieldState.changeText) {
+        boundFieldState.changeText = nextChangeText;
+        boundChangeInput.value = nextChangeText;
+      }
+    };
+
+    const setVolumeText = (value: number): void => {
+      const nextVolumeText = formatInteger(value);
+
+      if (nextVolumeText !== boundFieldState.volumeText) {
+        boundFieldState.volumeText = nextVolumeText;
+        boundVolumeInput.value = nextVolumeText;
+      }
+    };
+
+    const setTradesText = (value: number): void => {
+      const nextTradesText = formatInteger(value);
+
+      if (nextTradesText !== boundFieldState.tradesText) {
+        boundFieldState.tradesText = nextTradesText;
+        boundTradesInput.value = nextTradesText;
+      }
+    };
+
+    const setHeatValue = (value: number): void => {
+      const nextHeatText = value.toString();
+
+      if (nextHeatText !== boundFieldState.heatText) {
+        boundFieldState.heatText = nextHeatText;
+        boundHeatInput.value = nextHeatText;
+      }
+    };
+
     registerCleanup(
       cleanups,
       bindMarketRow(props.row, {
         applyAll(value) {
           applyRowState(boundEditorElement, value, boundClassState);
-          boundFieldState.priceText = value.price.toFixed(2);
-          boundFieldState.changeText = formatPercent(value.change);
-          boundFieldState.volumeText = formatInteger(value.volume);
-          boundFieldState.tradesText = formatInteger(value.trades);
+          setPriceText(value.price);
+          setChangeText(value.change);
+          setVolumeText(value.volume);
+          setTradesText(value.trades);
+          setHeatValue(value.heat);
           boundFieldState.focused = value.focused;
-          boundPriceInput.value = boundFieldState.priceText;
-          boundChangeInput.value = boundFieldState.changeText;
-          boundVolumeInput.value = boundFieldState.volumeText;
-          boundTradesInput.value = boundFieldState.tradesText;
-          boundHeatInput.value = String(value.heat);
           boundFocusedInput.checked = value.focused;
         },
         applyPrice(value) {
-          const nextPriceText = value.toFixed(2);
-          if (nextPriceText !== boundFieldState.priceText) {
-            boundFieldState.priceText = nextPriceText;
-            boundPriceInput.value = nextPriceText;
-          }
+          setPriceText(value);
         },
-        applyChange(value, nextRow) {
-          const nextChangeText = formatPercent(value);
-          if (nextChangeText !== boundFieldState.changeText) {
-            boundFieldState.changeText = nextChangeText;
-            boundChangeInput.value = nextChangeText;
-          }
-          if (
-            value >= 0 !== boundClassState.positiveChange ||
-            nextRow.focused !== boundClassState.focused
-          ) {
-            applyRowState(boundEditorElement, nextRow, boundClassState);
+        applyChange(value) {
+          setChangeText(value);
+          const nextPositiveChange = value >= 0;
+
+          if (nextPositiveChange !== boundClassState.positiveChange) {
+            applyRowClassState(
+              boundEditorElement,
+              boundClassState,
+              boundClassState.focused,
+              nextPositiveChange,
+            );
           }
         },
         applyVolume(value) {
-          const nextVolumeText = formatInteger(value);
-          if (nextVolumeText !== boundFieldState.volumeText) {
-            boundFieldState.volumeText = nextVolumeText;
-            boundVolumeInput.value = nextVolumeText;
-          }
+          setVolumeText(value);
         },
         applyTrades(value) {
-          const nextTradesText = formatInteger(value);
-          if (nextTradesText !== boundFieldState.tradesText) {
-            boundFieldState.tradesText = nextTradesText;
-            boundTradesInput.value = nextTradesText;
-          }
+          setTradesText(value);
         },
         applyHeat(value) {
-          boundHeatInput.value = String(value);
+          setHeatValue(value);
         },
-        applyFocused(value, nextRow) {
-          if (nextRow.focused !== boundClassState.focused) {
-            applyRowState(boundEditorElement, nextRow, boundClassState);
+        applyFocused(value) {
+          if (value !== boundClassState.focused) {
+            applyRowClassState(
+              boundEditorElement,
+              boundClassState,
+              value,
+              boundClassState.positiveChange,
+            );
           }
           if (value !== boundFieldState.focused) {
             boundFieldState.focused = value;
@@ -135,7 +181,10 @@ export const EditorRow = component<EditorRowProps>((props) => {
 
   return (
     <article
-      class={getRowClassName("market-editor", currentRow)}
+      class={initialClassName}
+      onMouseEnter={() => {
+        props.onHoverRow?.(currentRow.id);
+      }}
       ref={(node) => {
         if (node instanceof HTMLElement) {
           editorElement = node;
@@ -159,7 +208,7 @@ export const EditorRow = component<EditorRowProps>((props) => {
           <input
             class="editor-input"
             readOnly
-            value={currentRow.price.toFixed(2)}
+            value={fieldState.priceText}
             ref={(node) => {
               if (node instanceof HTMLInputElement) {
                 priceInput = node;
@@ -173,7 +222,7 @@ export const EditorRow = component<EditorRowProps>((props) => {
           <input
             class="editor-input"
             readOnly
-            value={formatPercent(currentRow.change)}
+            value={fieldState.changeText}
             ref={(node) => {
               if (node instanceof HTMLInputElement) {
                 changeInput = node;
@@ -187,7 +236,7 @@ export const EditorRow = component<EditorRowProps>((props) => {
           <input
             class="editor-input"
             readOnly
-            value={formatInteger(currentRow.volume)}
+            value={fieldState.volumeText}
             ref={(node) => {
               if (node instanceof HTMLInputElement) {
                 volumeInput = node;
@@ -201,7 +250,7 @@ export const EditorRow = component<EditorRowProps>((props) => {
           <input
             class="editor-input"
             readOnly
-            value={formatInteger(currentRow.trades)}
+            value={fieldState.tradesText}
             ref={(node) => {
               if (node instanceof HTMLInputElement) {
                 tradesInput = node;
@@ -219,7 +268,7 @@ export const EditorRow = component<EditorRowProps>((props) => {
             type="range"
             min="0"
             max="100"
-            value={currentRow.heat.toString()}
+            value={fieldState.heatText}
             disabled
             ref={(node) => {
               if (node instanceof HTMLInputElement) {
@@ -234,7 +283,7 @@ export const EditorRow = component<EditorRowProps>((props) => {
           <input
             class="editor-checkbox"
             type="checkbox"
-            checked={currentRow.focused}
+            checked={fieldState.focused}
             disabled
             ref={(node) => {
               if (node instanceof HTMLInputElement) {

@@ -1,3 +1,5 @@
+import type { JSX } from "react";
+
 interface MetricCardProps {
   readonly label: string;
   readonly value: string;

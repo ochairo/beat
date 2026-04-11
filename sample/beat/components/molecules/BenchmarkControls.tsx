@@ -9,8 +9,7 @@ interface BenchmarkControlsProps {
   readonly stormWrites: number;
   readonly onRunBatchedSweep: () => void | Promise<void>;
   readonly onRunWriteStorm: () => void | Promise<void>;
-  readonly onRunUnbatchedSweep: () => void | Promise<void>;
-  readonly onFocusNextRow: () => void | Promise<void>;
+  readonly onRunFirstRowChange: () => void | Promise<void>;
 }
 
 export const BenchmarkControls = component<BenchmarkControlsProps>((props) => {
@@ -23,18 +22,13 @@ export const BenchmarkControls = component<BenchmarkControlsProps>((props) => {
       />
       <ActionButton
         label="Run write storm"
-        hint={`${formatInteger(props.stormWrites * 3)} hot-path writes across price, change, and heat.`}
+        hint={`Touch ${formatInteger(props.stormWrites)} rows and ${formatInteger(props.stormWrites * 3)} leaf writes across price, change, and heat.`}
         onClick={props.onRunWriteStorm}
       />
       <ActionButton
-        label="Run unbatched sweep"
-        hint="Same workload, but notify on every write so the difference is obvious."
-        onClick={props.onRunUnbatchedSweep}
-      />
-      <ActionButton
-        label="Shift focused row"
-        hint="Move the highlight bar with only a few path-level updates."
-        onClick={props.onFocusNextRow}
+        label="Run first-row change"
+        hint={`Touch 1 row and ${formatInteger(props.sweepFieldsPerRow)} leaf writes on the first mounted row.`}
+        onClick={props.onRunFirstRowChange}
       />
     </div>
   );

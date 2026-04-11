@@ -13,13 +13,13 @@ type ScenarioMetrics = {
 const SAMPLE_PATHS: readonly SamplePath[] = ["/beat/", "/react/", "/solid/"];
 const SURFACE_MODES: readonly SurfaceMode[] = ["table", "cards", "editor"];
 
-const ITERATIONS = 3;
+const ITERATIONS = 5;
 
 type SampleResult = {
   readonly path: SamplePath;
   readonly surface: SurfaceMode;
   readonly batchedSweep: ScenarioMetrics;
-  readonly unbatchedSweep: ScenarioMetrics;
+  readonly firstRowChange: ScenarioMetrics;
   readonly writeStorm: ScenarioMetrics;
   readonly focusShift: ScenarioMetrics;
 };
@@ -57,6 +57,21 @@ function rotateSamplePaths(iteration: number): readonly SamplePath[] {
   return SAMPLE_PATHS.map(
     (_, index) => SAMPLE_PATHS[(index + offset) % SAMPLE_PATHS.length],
   );
+}
+
+function getFocusShiftTarget(
+  page: import("@playwright/test").Page,
+  surface: SurfaceMode,
+) {
+  if (surface === "table") {
+    return page.locator(".order-book__row").nth(1);
+  }
+
+  if (surface === "cards") {
+    return page.locator(".market-card").nth(1);
+  }
+
+  return page.locator(".market-editor").nth(1);
 }
 
 async function runScenario(
@@ -97,15 +112,40 @@ async function runScenario(
   };
 
   const batchedSweep = await runControl("Run batched sweep");
-  const unbatchedSweep = await runControl("Run unbatched sweep");
+  const firstRowChange = await runControl("Run first-row change");
   const writeStorm = await runControl("Run write storm");
-  const focusShift = await runControl("Shift focused row");
+  const focusShift = await (async (): Promise<ScenarioMetrics> => {
+    const previousWrite = await readMetricText(page, "Last write burst");
+    const previousTotal = await readMetricText(page, "Last total burst");
+
+    await getFocusShiftTarget(page, surface).hover();
+
+    await expect
+      .poll(async () => {
+        const nextWrite = await readMetricText(page, "Last write burst");
+        const nextTotal = await readMetricText(page, "Last total burst");
+        return `${nextWrite}|${nextTotal}`;
+      })
+      .not.toBe(`${previousWrite}|${previousTotal}`);
+
+    return {
+      writeMs: parseMilliseconds(
+        await readMetricText(page, "Last write burst"),
+      ),
+      visualMs: parseMilliseconds(
+        await readMetricText(page, "Last visual settle"),
+      ),
+      totalMs: parseMilliseconds(
+        await readMetricText(page, "Last total burst"),
+      ),
+    };
+  })();
 
   return {
     path,
     surface,
     batchedSweep,
-    unbatchedSweep,
+    firstRowChange,
     writeStorm,
     focusShift,
   };
@@ -140,8 +180,8 @@ async function runComparison(
         batchedSweep: averageScenarioMetrics(
           runs.map((run) => run.batchedSweep),
         ),
-        unbatchedSweep: averageScenarioMetrics(
-          runs.map((run) => run.unbatchedSweep),
+        firstRowChange: averageScenarioMetrics(
+          runs.map((run) => run.firstRowChange),
         ),
         writeStorm: averageScenarioMetrics(runs.map((run) => run.writeStorm)),
         focusShift: averageScenarioMetrics(runs.map((run) => run.focusShift)),
@@ -161,8 +201,8 @@ test("compares Beat, React, and Solid sample timings", async ({ page }) => {
       surface: result.surface,
       batchedSweepWriteMs: result.batchedSweep.writeMs,
       batchedSweepTotalMs: result.batchedSweep.totalMs,
-      unbatchedSweepWriteMs: result.unbatchedSweep.writeMs,
-      unbatchedSweepTotalMs: result.unbatchedSweep.totalMs,
+      firstRowChangeWriteMs: result.firstRowChange.writeMs,
+      firstRowChangeTotalMs: result.firstRowChange.totalMs,
       writeStormWriteMs: result.writeStorm.writeMs,
       writeStormTotalMs: result.writeStorm.totalMs,
       focusShiftWriteMs: result.focusShift.writeMs,
@@ -175,7 +215,7 @@ test("compares Beat, React, and Solid sample timings", async ({ page }) => {
   for (const result of results) {
     for (const scenario of [
       result.batchedSweep,
-      result.unbatchedSweep,
+      result.firstRowChange,
       result.writeStorm,
       result.focusShift,
     ]) {

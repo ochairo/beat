@@ -1,10 +1,10 @@
+import type { JSX } from "react";
 import { formatFixedMs, formatInteger } from "../../lib/format.js";
 import type { DemoMetrics } from "../../types.js";
 import { MetricCard } from "../atoms/MetricCard.js";
 
 interface MetricsGridProps {
   readonly metrics: DemoMetrics;
-  readonly benchmarkMode: boolean;
 }
 
 export function MetricsGrid(props: MetricsGridProps): JSX.Element {
@@ -35,20 +35,16 @@ export function MetricsGrid(props: MetricsGridProps): JSX.Element {
         value={formatFixedMs(props.metrics.bestTotalMs)}
         detail="Fastest full interaction measured so far"
       />
-      {props.benchmarkMode ? null : (
-        <>
-          <MetricCard
-            label="Leaf writes"
-            value={formatInteger(props.metrics.totalWrites)}
-            detail="Logical field writes applied"
-          />
-          <MetricCard
-            label="Operations"
-            value={formatInteger(props.metrics.operationsRun)}
-            detail="Completed demo runs"
-          />
-        </>
-      )}
+      <MetricCard
+        label="Leaf writes"
+        value={formatInteger(props.metrics.totalWrites)}
+        detail="Logical field writes applied"
+      />
+      <MetricCard
+        label="Operations"
+        value={formatInteger(props.metrics.operationsRun)}
+        detail="Completed demo runs"
+      />
     </div>
   );
 }

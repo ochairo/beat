@@ -1,0 +1,91 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches Beat and create-beat versions
+        run: |
+          node <<'EOF'
+          const { readFileSync } = require('node:fs');
+
+          const beatPackage = JSON.parse(readFileSync('package.json', 'utf8'));
+          const createBeatPackage = JSON.parse(readFileSync('create-beat/package.json', 'utf8'));
+          const tag = process.env.GITHUB_REF_NAME;
+          const expected = `v${beatPackage.version}`;
+
+          if (beatPackage.version !== createBeatPackage.version) {
+            console.error(
+              `Beat version ${beatPackage.version} does not match create-beat version ${createBeatPackage.version}.`,
+            );
+            process.exit(1);
+          }
+
+          if (tag !== expected) {
+            console.error(`Tag ${tag} does not match package.json version ${beatPackage.version}.`);
+            process.exit(1);
+          }
+          EOF
+
+      - name: Run Beat validation
+        run: pnpm validate
+
+      - name: Run create-beat scaffold tests
+        run: pnpm exec vitest run tests/create-beat.test.ts
+
+      - name: Verify create-beat package can be packed
+        working-directory: create-beat
+        run: npm pack --dry-run
+
+      - name: Check npm for existing @ochairo/create-beat version
+        id: registry
+        run: |
+          package_version=$(node -p "require('./create-beat/package.json').version")
+          published_version=$(npm view @ochairo/create-beat version 2>/dev/null || true)
+          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
+          echo "published_version=$published_version" >> "$GITHUB_OUTPUT"
+          if [ "$published_version" = "$package_version" ]; then
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish @ochairo/create-beat to npm
+        if: steps.registry.outputs.skip_publish != 'true'
+        working-directory: create-beat
+        run: pnpm publish --provenance --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Report skipped publish
+        if: steps.registry.outputs.skip_publish == 'true'
+        run: |
+          echo "@ochairo/create-beat@${{ steps.registry.outputs.package_version }} is already on npm."

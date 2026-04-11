@@ -1,7 +1,40 @@
-import type { BeatCleanup } from "@ochairo/beat";
+import {
+  bindMasked,
+  createObjectKeyMask,
+  type BeatCleanup,
+} from "@ochairo/beat";
 import type { Pulse } from "@ochairo/pulse";
-import { formatHeatTransform } from "./format.js";
 import type { MarketRow, RowClassState } from "../types.js";
+
+const MARKET_ROW_PRICE_MASK = 1 << 0;
+const MARKET_ROW_CHANGE_MASK = 1 << 1;
+const MARKET_ROW_VOLUME_MASK = 1 << 2;
+const MARKET_ROW_TRADES_MASK = 1 << 3;
+const MARKET_ROW_HEAT_MASK = 1 << 4;
+const MARKET_ROW_FOCUSED_MASK = 1 << 5;
+const MARKET_ROW_FULL_MASK =
+  MARKET_ROW_PRICE_MASK |
+  MARKET_ROW_CHANGE_MASK |
+  MARKET_ROW_VOLUME_MASK |
+  MARKET_ROW_TRADES_MASK |
+  MARKET_ROW_HEAT_MASK |
+  MARKET_ROW_FOCUSED_MASK;
+const HEAT_WIDTH_TEXT = Array.from(
+  { length: 101 },
+  (_, index) => `${(index / 100).toFixed(2)}`,
+);
+
+const getMarketRowChangeMask = createObjectKeyMask<MarketRow>(
+  {
+    price: MARKET_ROW_PRICE_MASK,
+    change: MARKET_ROW_CHANGE_MASK,
+    volume: MARKET_ROW_VOLUME_MASK,
+    trades: MARKET_ROW_TRADES_MASK,
+    heat: MARKET_ROW_HEAT_MASK,
+    focused: MARKET_ROW_FOCUSED_MASK,
+  },
+  MARKET_ROW_FULL_MASK,
+);
 
 export interface MarketRowBinding {
   applyAll(value: MarketRow): void;
@@ -14,7 +47,16 @@ export interface MarketRowBinding {
 }
 
 export function applyHeatFill(element: HTMLElement, value: number): void {
-  element.style.transform = formatHeatTransform(value);
+  applyHeatWidth(element, readHeatWidth(value));
+}
+
+export function readHeatWidth(value: number): string {
+  const clampedValue = Math.max(0, Math.min(100, Math.round(value)));
+  return HEAT_WIDTH_TEXT[clampedValue] ?? "1.00";
+}
+
+export function applyHeatWidth(element: HTMLElement, width: string): void {
+  element.style.transform = `scaleX(${width})`;
 }
 
 export function registerCleanup(
@@ -44,51 +86,90 @@ export function bindMarketRow(
   row: Pulse<MarketRow>,
   binding: MarketRowBinding,
 ): BeatCleanup {
-  binding.applyAll(row.get());
+  const applyPrice = binding.applyPrice;
+  const applyChange = binding.applyChange;
+  const applyVolume = binding.applyVolume;
+  const applyTrades = binding.applyTrades;
+  const applyHeat = binding.applyHeat;
+  const applyFocused = binding.applyFocused;
 
-  return row.on((event) => {
-    const nextRow = event.currentValue;
-
-    if (event.changes.length === 0) {
-      applyMarketRowDiff(binding, event.previousValue, nextRow);
-      return;
-    }
-
-    for (const change of event.changes) {
-      if (change.path.length !== 1 || typeof change.key !== "string") {
-        applyMarketRowDiff(binding, event.previousValue, nextRow);
+  return bindMasked(row, {
+    fullMask: MARKET_ROW_FULL_MASK,
+    getChangeMask: getMarketRowChangeMask,
+    apply(value, mask) {
+      if (mask === MARKET_ROW_FULL_MASK) {
+        binding.applyAll(value);
         return;
       }
 
-      switch (change.key) {
-        case "price":
-          binding.applyPrice?.(nextRow.price, nextRow);
-          break;
-        case "change":
-          binding.applyChange?.(nextRow.change, nextRow);
-          break;
-        case "volume":
-          binding.applyVolume?.(nextRow.volume, nextRow);
-          break;
-        case "trades":
-          binding.applyTrades?.(nextRow.trades, nextRow);
-          break;
-        case "heat":
-          binding.applyHeat?.(nextRow.heat, nextRow);
-          break;
-        case "focused":
-          binding.applyFocused?.(nextRow.focused, nextRow);
-          break;
-        default:
-          applyMarketRowDiff(binding, event.previousValue, nextRow);
+      if ((mask & MARKET_ROW_PRICE_MASK) !== 0) {
+        if (!applyPrice) {
+          binding.applyAll(value);
           return;
+        }
+
+        applyPrice(value.price, value);
       }
-    }
+
+      if ((mask & MARKET_ROW_CHANGE_MASK) !== 0) {
+        if (!applyChange) {
+          binding.applyAll(value);
+          return;
+        }
+
+        applyChange(value.change, value);
+      }
+
+      if ((mask & MARKET_ROW_VOLUME_MASK) !== 0) {
+        if (!applyVolume) {
+          binding.applyAll(value);
+          return;
+        }
+
+        applyVolume(value.volume, value);
+      }
+
+      if ((mask & MARKET_ROW_TRADES_MASK) !== 0) {
+        if (!applyTrades) {
+          binding.applyAll(value);
+          return;
+        }
+
+        applyTrades(value.trades, value);
+      }
+
+      if ((mask & MARKET_ROW_HEAT_MASK) !== 0) {
+        if (!applyHeat) {
+          binding.applyAll(value);
+          return;
+        }
+
+        applyHeat(value.heat, value);
+      }
+
+      if ((mask & MARKET_ROW_FOCUSED_MASK) !== 0) {
+        if (!applyFocused) {
+          binding.applyAll(value);
+          return;
+        }
+
+        applyFocused(value.focused, value);
+      }
+    },
   });
 }
 
 export function getRowClassName(baseClassName: string, row: MarketRow): string {
-  return `${baseClassName} ${row.focused ? "is-focused" : ""} ${row.change >= 0 ? "is-up" : "is-down"}`.trim();
+  return readRowClassName(baseClassName, row.focused, row.change >= 0);
+}
+
+export function readRowClassName(
+  baseClassName: string,
+  focused: boolean,
+  positiveChange: boolean,
+): string {
+  const focusClassName = focused ? " is-focused" : "";
+  return `${baseClassName}${focusClassName}${positiveChange ? " is-up" : " is-down"}`;
 }
 
 export function applyRowState(
@@ -96,66 +177,30 @@ export function applyRowState(
   row: MarketRow,
   state: RowClassState,
 ): void {
-  if (row.focused !== state.focused) {
-    state.focused = row.focused;
-    element.classList.toggle("is-focused", row.focused);
+  applyRowClassState(element, state, row.focused, row.change >= 0);
+}
+
+export function applyRowClassState(
+  element: HTMLElement,
+  state: RowClassState,
+  nextFocused: boolean,
+  nextPositiveChange: boolean,
+): void {
+  if (
+    nextFocused === state.focused &&
+    nextPositiveChange === state.positiveChange
+  ) {
+    return;
   }
 
-  const nextPositiveChange = row.change >= 0;
+  if (nextFocused !== state.focused) {
+    state.focused = nextFocused;
+    element.classList.toggle("is-focused", nextFocused);
+  }
+
   if (nextPositiveChange !== state.positiveChange) {
     state.positiveChange = nextPositiveChange;
     element.classList.toggle("is-up", nextPositiveChange);
     element.classList.toggle("is-down", !nextPositiveChange);
-  }
-}
-
-function applyMarketRowDiff(
-  binding: MarketRowBinding,
-  previousRow: MarketRow,
-  nextRow: MarketRow,
-): void {
-  if (
-    previousRow.id !== nextRow.id ||
-    previousRow.symbol !== nextRow.symbol ||
-    previousRow.venue !== nextRow.venue
-  ) {
-    binding.applyAll(nextRow);
-    return;
-  }
-
-  if (
-    (!Object.is(previousRow.price, nextRow.price) && !binding.applyPrice) ||
-    (!Object.is(previousRow.change, nextRow.change) && !binding.applyChange) ||
-    (!Object.is(previousRow.volume, nextRow.volume) && !binding.applyVolume) ||
-    (!Object.is(previousRow.trades, nextRow.trades) && !binding.applyTrades) ||
-    (!Object.is(previousRow.heat, nextRow.heat) && !binding.applyHeat) ||
-    (!Object.is(previousRow.focused, nextRow.focused) && !binding.applyFocused)
-  ) {
-    binding.applyAll(nextRow);
-    return;
-  }
-
-  if (!Object.is(previousRow.price, nextRow.price)) {
-    binding.applyPrice?.(nextRow.price, nextRow);
-  }
-
-  if (!Object.is(previousRow.change, nextRow.change)) {
-    binding.applyChange?.(nextRow.change, nextRow);
-  }
-
-  if (!Object.is(previousRow.volume, nextRow.volume)) {
-    binding.applyVolume?.(nextRow.volume, nextRow);
-  }
-
-  if (!Object.is(previousRow.trades, nextRow.trades)) {
-    binding.applyTrades?.(nextRow.trades, nextRow);
-  }
-
-  if (!Object.is(previousRow.heat, nextRow.heat)) {
-    binding.applyHeat?.(nextRow.heat, nextRow);
-  }
-
-  if (!Object.is(previousRow.focused, nextRow.focused)) {
-    binding.applyFocused?.(nextRow.focused, nextRow);
   }
 }

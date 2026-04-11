@@ -22,7 +22,7 @@ export interface DemoMetrics {
   readonly status: string;
 }
 
-export type Mode = "batched" | "unbatched";
+export type Mode = "batched" | "single";
 export type SurfaceMode = "table" | "cards" | "editor";
 
 export interface BenchmarkTiming {

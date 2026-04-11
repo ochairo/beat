@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import type { DemoMetrics } from "../../types.js";
 
 interface ExecutionFeedProps {

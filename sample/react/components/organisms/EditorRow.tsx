@@ -1,9 +1,10 @@
-import { memo } from "react";
+import { memo, type JSX } from "react";
 import { formatInteger, formatPercent } from "../../lib/format.js";
 import { useRow } from "../../lib/market-store.js";
 import type { MarketStore } from "../../types.js";
 
 interface EditorRowProps {
+  readonly onHoverRow?: (rowId: number) => void;
   readonly store: MarketStore;
   readonly rowId: number;
 }
@@ -16,6 +17,9 @@ export const EditorRow = memo(function EditorRow(
   return (
     <article
       className={`market-editor ${row.focused ? "is-focused" : ""} ${row.change >= 0 ? "is-up" : "is-down"}`.trim()}
+      onMouseEnter={() => {
+        props.onHoverRow?.(props.rowId);
+      }}
     >
       <div className="market-editor__header">
         <div>

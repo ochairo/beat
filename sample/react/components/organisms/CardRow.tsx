@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type JSX } from "react";
 import {
   formatCurrency,
   formatInteger,
@@ -8,6 +8,7 @@ import { useRow } from "../../lib/market-store.js";
 import type { MarketStore } from "../../types.js";
 
 interface CardRowProps {
+  readonly onHoverRow?: (rowId: number) => void;
   readonly store: MarketStore;
   readonly rowId: number;
 }
@@ -18,6 +19,9 @@ export const CardRow = memo(function CardRow(props: CardRowProps): JSX.Element {
   return (
     <article
       className={`market-card ${row.focused ? "is-focused" : ""} ${row.change >= 0 ? "is-up" : "is-down"}`.trim()}
+      onMouseEnter={() => {
+        props.onHoverRow?.(props.rowId);
+      }}
     >
       <div className="market-card__header">
         <div>

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   For,
   Show,
+  bindExactMasked,
   bindFields,
   bindMasked,
   bindProperty,
@@ -103,6 +104,46 @@ describe("dom bindings", () => {
 
     expect(rows.get()).toEqual([{ id: 1, label: "Grace" }]);
     expect(host.textContent).toBe("Grace");
+
+    rendered.cleanup?.();
+  });
+
+  it("For keeps keyed entries mounted for exact-path child updates", () => {
+    const rows = pulse([
+      { id: 1, label: "Ada" },
+      { id: 2, label: "Grace" },
+    ]);
+    let renderCount = 0;
+
+    const rendered = For({
+      each: rows,
+      key: (value) => value.id,
+      children: (row) => {
+        renderCount += 1;
+        return jsx("span", { children: row.label });
+      },
+    });
+
+    const host = document.createElement("div");
+    host.append(rendered.node);
+
+    expect(renderCount).toBe(2);
+    expect(host.textContent).toBe("AdaGrace");
+
+    const firstRowValue = rows.get()[0];
+
+    expect(firstRowValue).toBeDefined();
+
+    if (!firstRowValue) {
+      throw new Error("Expected first row pulse to exist.");
+    }
+
+    const firstRow = rows[0] as Pulse<{ id: number; label: string }>;
+
+    firstRow.label.set("Lin");
+
+    expect(renderCount).toBe(2);
+    expect(host.textContent).toBe("LinGrace");
 
     rendered.cleanup?.();
   });
@@ -226,6 +267,74 @@ describe("dom bindings", () => {
     cleanup();
   });
 
+  it("bindExactMasked applies exact object replacements through one listener", () => {
+    const COUNT_MASK = 1 << 0;
+    const LABEL_MASK = 1 << 1;
+    const state = pulse({ item: { count: 0, label: "Ada" } });
+    const seen: string[] = [];
+
+    const cleanup = bindExactMasked(state.item, {
+      fullMask: COUNT_MASK | LABEL_MASK,
+      getChangeMask: createObjectKeyMask<{ count: number; label: string }>(
+        {
+          count: COUNT_MASK,
+          label: LABEL_MASK,
+        },
+        COUNT_MASK | LABEL_MASK,
+      ),
+      apply(value, mask) {
+        if ((mask & COUNT_MASK) !== 0) {
+          seen.push(`count:${value.count.toString()}`);
+        }
+
+        if ((mask & LABEL_MASK) !== 0) {
+          seen.push(`label:${value.label}`);
+        }
+      },
+    });
+
+    expect(seen).toEqual(["count:0", "label:Ada"]);
+
+    state.item.set({ count: 2, label: "Grace" });
+
+    expect(seen).toEqual(["count:0", "label:Ada", "count:2", "label:Grace"]);
+
+    cleanup();
+  });
+
+  it("bindExactMasked stays exact-path and ignores descendant-only leaf writes", () => {
+    const COUNT_MASK = 1 << 0;
+    const LABEL_MASK = 1 << 1;
+    const state = pulse({ item: { count: 0, label: "Ada" } });
+    const seen: string[] = [];
+
+    const cleanup = bindExactMasked(state.item, {
+      fullMask: COUNT_MASK | LABEL_MASK,
+      getChangeMask: createObjectKeyMask<{ count: number; label: string }>(
+        {
+          count: COUNT_MASK,
+          label: LABEL_MASK,
+        },
+        COUNT_MASK | LABEL_MASK,
+      ),
+      apply(value, mask) {
+        if ((mask & COUNT_MASK) !== 0) {
+          seen.push(`count:${value.count.toString()}`);
+        }
+
+        if ((mask & LABEL_MASK) !== 0) {
+          seen.push(`label:${value.label}`);
+        }
+      },
+    });
+
+    state.item.count.set(1);
+
+    expect(seen).toEqual(["count:0", "label:Ada"]);
+
+    cleanup();
+  });
+
   it("createObjectKeyMask resolves known keys and falls back for unknown ones", () => {
     const mask = createObjectKeyMask<{ count: number; label: string }>(
       {
@@ -294,6 +403,23 @@ describe("dom bindings", () => {
     expect(clicked).toBe(1);
 
     rendered.cleanup?.();
+  });
+
+  it("jsx rejects pulse lookalikes that are not authentic pulse nodes", () => {
+    const fakePulse = {
+      get() {
+        return "Save";
+      },
+      on() {
+        return () => {};
+      },
+    };
+
+    expect(() =>
+      jsx("button", {
+        children: fakePulse as unknown as Pulse<string>,
+      }),
+    ).toThrowError("Unsupported Beat JSX child");
   });
 
   it("jsx applies lowered text, class, style, and property bindings", () => {
@@ -440,7 +566,17 @@ describe("dom bindings", () => {
 
     expect(host.textContent).toBe("GraceAda");
 
-    rows[0]?.label.set("Amazing Grace");
+    const firstRowValue = rows.get()[0];
+
+    expect(firstRowValue).toBeDefined();
+
+    if (!firstRowValue) {
+      throw new Error("Expected first row pulse to exist.");
+    }
+
+    const firstRow = rows[0] as Pulse<{ id: string; label: string }>;
+
+    firstRow.label.set("Amazing Grace");
 
     expect(host.textContent).toBe("Amazing GraceAda");
     expect(renderCount).toBe(4);

@@ -6,9 +6,14 @@ interface ActionButtonProps {
 
 export function ActionButton(props: ActionButtonProps): JSX.Element {
   return (
-    <button class="button" type="button" onClick={props.onClick}>
+    <button
+      class="button"
+      type="button"
+      title={props.hint}
+      aria-label={`${props.label}. ${props.hint}`}
+      onClick={props.onClick}
+    >
       <span class="button__label">{props.label}</span>
-      <span class="button__hint">{props.hint}</span>
     </button>
   );
 }

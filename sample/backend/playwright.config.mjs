@@ -12,7 +12,7 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: "pnpm --dir ../.. sample:build && pnpm serve",
+    command: "pnpm benchmark:serve",
     port: 4173,
     reuseExistingServer: true,
     timeout: 120000,

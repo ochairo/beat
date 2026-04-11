@@ -75,30 +75,33 @@ export function mutateRow(row: Pulse<MarketRow>): void {
     100,
   );
 
-  row.set({
-    ...currentRow,
-    price: nextPrice,
-    change: nextChange,
-    volume: nextVolume,
-    trades: nextTrades,
-    heat: nextHeat,
-  });
+  row.price.set(nextPrice);
+  row.change.set(nextChange);
+  row.volume.set(nextVolume);
+  row.trades.set(nextTrades);
+  row.heat.set(nextHeat);
 }
 
 export function stormRow(row: Pulse<MarketRow>): void {
   const currentRow = row.get();
   const drift = roundTo((nextRandom() - 0.5) * 0.9, 2);
 
-  row.set({
-    ...currentRow,
-    price: roundTo(currentRow.price + drift, 2),
-    change: roundTo(currentRow.change + drift * 0.55, 2),
-    heat: clamp(
-      currentRow.heat + Math.floor((nextRandom() - 0.45) * 12),
-      4,
-      100,
-    ),
-  });
+  row.price.set(roundTo(currentRow.price + drift, 2));
+  row.change.set(roundTo(currentRow.change + drift * 0.55, 2));
+  row.heat.set(
+    clamp(currentRow.heat + Math.floor((nextRandom() - 0.45) * 12), 4, 100),
+  );
+}
+
+export function setMarketRowFocused(
+  row: Pulse<MarketRow>,
+  focused: boolean,
+): void {
+  if (row.focused.get() === focused) {
+    return;
+  }
+
+  row.focused.set(focused);
 }
 
 export async function fetchMarketRows(rowCount: number): Promise<MarketRow[]> {

@@ -2,7 +2,7 @@
 
 This document describes the current compiler-facing contract for Beat's JSX transform.
 
-Beat is still pre-`1.0.0`, but authors should already be able to rely on the lowering model documented here across patch releases unless a change fixes incorrect behavior.
+Beat `1.0.x` freezes the documented lowering model unless a change fixes incorrect behavior.
 
 ## Scope
 
@@ -112,12 +112,13 @@ Beat intentionally does not do this for mixed content such as:
 
 ## Stability Expectations
 
-For the current `0.2.x` line:
+For the current `1.0.x` line:
 
 - the public syntax documented above is the contract
 - the exact generated internal prop names are not public API
-- patch releases may fix incorrect transforms or non-overreach bugs
-- minor and major releases may expand the lowering surface, but existing documented syntax should not change casually
+- patch releases may fix incorrect transforms or non-overreach bugs without changing the documented public syntax
+- minor releases may expand the lowering surface additively
+- breaking changes to the documented lowering contract are reserved for future major versions
 
 ## Non-Goals In The Current Compiler
 

@@ -91,7 +91,7 @@ export function createMarketStore(
   const metricsListeners = createListenerStore();
   const focusedRowListeners = createListenerStore();
   let metrics = createInitialMetrics(
-    "Ready. React is subscribing row by row through useSyncExternalStore.",
+    "Ready. This sample uses the same app shell for interactive use and repeatable workload runs.",
   );
   let focusedRowId = 0;
   let isBatching = false;

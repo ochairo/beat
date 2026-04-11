@@ -96,6 +96,57 @@ function isStructuralArrayChange(changes: readonly PulseMutation[]): boolean {
   });
 }
 
+function readImmediateChildKeys(value: unknown): PropertyKey[] {
+  if (Array.isArray(value)) {
+    return Object.keys(value);
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return Reflect.ownKeys(value);
+  }
+
+  return [];
+}
+
+function hasSameImmediateChildKeys(
+  previousKeys: readonly PropertyKey[],
+  value: unknown,
+): boolean {
+  if (Array.isArray(value)) {
+    return hasSameEnumerableKeys(previousKeys, value);
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return hasSameEnumerableKeys(
+      previousKeys,
+      value as Record<PropertyKey, unknown>,
+    );
+  }
+
+  return previousKeys.length === 0;
+}
+
+function hasSameEnumerableKeys(
+  previousKeys: readonly PropertyKey[],
+  value: Record<PropertyKey, unknown> | readonly unknown[],
+): boolean {
+  let index = 0;
+
+  for (const key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) {
+      continue;
+    }
+
+    if (!Object.is(previousKeys[index], key)) {
+      return false;
+    }
+
+    index += 1;
+  }
+
+  return index === previousKeys.length;
+}
+
 function getRequiredArrayItemPulse<TValue>(
   items: Pulse<readonly TValue[]>,
   index: number,
@@ -107,6 +158,20 @@ function getRequiredArrayItemPulse<TValue>(
   }
 
   return child as Pulse<TValue>;
+}
+
+function getObjectChildPulse<TValue extends object, TKey extends keyof TValue>(
+  node: Pulse<TValue>,
+  key: TKey,
+): Pulse<TValue[TKey]> {
+  return node.prop(key as never) as Pulse<TValue[TKey]>;
+}
+
+function getImmediateChildPulse<TValue>(
+  node: Pulse<TValue>,
+  key: PropertyKey,
+): Pulse<unknown> {
+  return node.prop(key as never) as Pulse<unknown>;
 }
 
 function normalizeRendered<TNode extends Node>(
@@ -166,85 +231,84 @@ export function bindFields<TValue extends object>(
   const entries = Object.entries(bindings) as Array<
     [keyof TValue, (value: TValue[keyof TValue]) => void]
   >;
-  const applyByKey = new Map<
-    PropertyKey,
-    (value: TValue[keyof TValue]) => void
-  >(entries);
-  let currentValue = node.get();
 
-  for (const [key, apply] of entries) {
-    apply(currentValue[key]);
-  }
+  const cleanups = entries.map(([key, apply]) => {
+    const child = getObjectChildPulse(node, key);
+    apply(child.get());
 
-  return node.on((event) => {
-    const nextValue = event.currentValue;
-    const changeCount = event.changes.length;
-
-    if (changeCount === 1) {
-      const [change] = event.changes;
-      const key = change?.key;
-
-      if (key !== undefined && typeof key !== "symbol") {
-        const apply = applyByKey.get(key);
-
-        if (apply) {
-          apply(nextValue[key as keyof TValue]);
-          currentValue = nextValue;
-          return;
-        }
-      }
-    }
-
-    const changedKeys: Array<keyof TValue> = [];
-    let canUseChangeKeys = changeCount > 0;
-
-    for (const change of event.changes) {
-      const key = change.key;
-
-      if (key === undefined || typeof key === "symbol") {
-        canUseChangeKeys = false;
-        break;
-      }
-
-      const apply = applyByKey.get(key);
-
-      if (!apply) {
-        canUseChangeKeys = false;
-        break;
-      }
-
-      const typedKey = key as keyof TValue;
-
-      if (
-        !changedKeys.some((existingKey) => Object.is(existingKey, typedKey))
-      ) {
-        changedKeys.push(typedKey);
-      }
-    }
-
-    if (canUseChangeKeys) {
-      for (const key of changedKeys) {
-        applyByKey.get(key)?.(nextValue[key]);
-      }
-
-      currentValue = nextValue;
-      return;
-    }
-
-    for (const [key, apply] of entries) {
-      const previousField = currentValue[key];
-      const nextField = nextValue[key];
-
-      if (!Object.is(previousField, nextField)) {
-        apply(nextField);
-      }
-    }
-
-    currentValue = nextValue;
+    return child.on((event) => {
+      apply(event.currentValue);
+    });
   });
+
+  return composeCleanup(...cleanups);
 }
 
 export function bindMasked<TValue>(
+  node: Pulse<TValue>,
+  binding: BeatMaskedBinding<TValue>,
+): BeatCleanup {
+  binding.apply(node.get(), binding.fullMask);
+
+  const initialKeys = readImmediateChildKeys(node.get());
+
+  if (initialKeys.length === 0) {
+    return node.on((event) => {
+      const mask =
+        event.changes.length === 0
+          ? binding.fullMask
+          : binding.getChangeMask(event.changes);
+
+      if (mask !== 0) {
+        binding.apply(event.currentValue, mask);
+      }
+    });
+  }
+
+  let trackedKeys = initialKeys;
+  let childCleanups: BeatCleanup[] = [];
+
+  const subscribeChildren = (): void => {
+    runCleanups(childCleanups);
+    childCleanups = trackedKeys.map((key) => {
+      const child = getImmediateChildPulse(node, key);
+
+      return child.on((event) => {
+        const mask = binding.getChangeMask(event.changes);
+
+        if (mask !== 0) {
+          binding.apply(node.get(), mask);
+        }
+      });
+    });
+  };
+
+  subscribeChildren();
+
+  const unsubscribeNode = node.on((event) => {
+    if (!hasSameImmediateChildKeys(trackedKeys, event.currentValue)) {
+      const mask =
+        event.changes.length === 0
+          ? binding.fullMask
+          : binding.getChangeMask(event.changes);
+
+      trackedKeys = readImmediateChildKeys(event.currentValue);
+      subscribeChildren();
+
+      if (mask !== 0) {
+        binding.apply(event.currentValue, mask);
+      }
+    }
+  });
+
+  return () => {
+    unsubscribeNode();
+    runCleanups(childCleanups);
+    childCleanups = [];
+  };
+}
+
+export function bindExactMasked<TValue>(
   node: Pulse<TValue>,
   binding: BeatMaskedBinding<TValue>,
 ): BeatCleanup {
@@ -428,14 +492,22 @@ export function mountEach<TValue>(
 
   renderAll();
 
-  const unsubscribe = items.on((event) => {
-    if (isStructuralArrayChange(event.changes)) {
+  const unsubscribeItems = items.on((event) => {
+    if (
+      isStructuralArrayChange(event.changes) &&
+      event.currentValue.length === event.previousValue.length
+    ) {
       renderAll();
     }
   });
 
+  const unsubscribeLength = items.length.on(() => {
+    renderAll();
+  });
+
   return () => {
-    unsubscribe();
+    unsubscribeItems();
+    unsubscribeLength();
     runCleanups(itemCleanups);
     itemCleanups = [];
     parent.replaceChildren();

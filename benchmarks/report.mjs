@@ -1,64 +1,60 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBeatBenchmarkSuite } from "./runtime.mjs";
 
-const REPORT_START = "<!-- benchmark-results:start -->";
-const REPORT_END = "<!-- benchmark-results:end -->";
+const REPORT_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "./runtime-report.md",
+);
 
 async function main() {
   const suite = runBeatBenchmarkSuite({ quiet: true });
-  const docsPath = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "../docs/BENCHMARKS.md",
-  );
-  const currentDocument = await readFile(docsPath, "utf8");
-  const nextBlock = renderGeneratedResultsBlock(suite);
-  const nextDocument = replaceGeneratedBlock(currentDocument, nextBlock);
+  const reportText = renderGeneratedResultsBlock(suite);
 
-  await writeFile(docsPath, nextDocument, "utf8");
-  console.log(`Updated ${docsPath}`);
-}
-
-function replaceGeneratedBlock(documentText, nextBlock) {
-  const startIndex = documentText.indexOf(REPORT_START);
-  const endIndex = documentText.indexOf(REPORT_END);
-
-  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
-    throw new TypeError(
-      "Benchmark results markers are missing from docs/BENCHMARKS.md.",
-    );
-  }
-
-  const before = documentText.slice(0, startIndex + REPORT_START.length);
-  const after = documentText.slice(endIndex);
-  return `${before}\n${nextBlock}\n${after}`;
+  await writeFile(REPORT_PATH, reportText, "utf8");
+  console.log(`Wrote ${REPORT_PATH}`);
 }
 
 function renderGeneratedResultsBlock(suite) {
-  const lines = ["", `Generated: ${new Date().toISOString()}`, ""];
+  const lines = [
+    "# Beat Runtime Benchmark Report",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    "",
+  ];
 
   for (const section of suite.sections) {
+    const hasMultipleCases = section.rankedCases.length > 1;
     const fastest = section.rankedCases[0];
-    const slowest = section.rankedCases[section.rankedCases.length - 1];
 
     lines.push(`### ${section.title}`, "");
-    if (fastest && slowest) {
+    if (hasMultipleCases && fastest) {
       lines.push(
-        `Fastest path: **${fastest.name}** at **${formatDuration(fastest.averageMs)}**.`,
-        `Slowest path in this section: **${slowest.name}** at **${formatDuration(slowest.averageMs)}**.`,
+        `Fastest median path: **${fastest.name}** at **${formatDuration(getBenchmarkScore(fastest))}**.`,
         "",
       );
     }
 
-    lines.push(
-      "| Benchmark | Time/op | Compared With Fastest | Reading | Iterations |",
-      "| --- | ---: | ---: | --- | ---: |",
-    );
+    if (hasMultipleCases) {
+      lines.push(
+        "| Benchmark | Median | Mean | RSD | Samples | Ops/Sample | Base Ops | Compared With Fastest |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+      );
+    } else {
+      lines.push(
+        "| Benchmark | Median | Mean | RSD | Samples | Ops/Sample | Base Ops |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+      );
+    }
 
     for (const result of section.rankedCases) {
+      const baseColumns = `| ${result.name} | ${formatDuration(getBenchmarkScore(result))} | ${formatDuration(result.averageMs)} | ${formatPercent(result.relativeStdDevPct ?? 0)} | ${(result.sampleCount ?? 1).toLocaleString("en-US")} | ${result.iterations.toLocaleString("en-US")} | ${(result.configuredIterations ?? result.iterations).toLocaleString("en-US")}`;
+
       lines.push(
-        `| ${result.name} | ${formatDuration(result.averageMs)} | ${result.rank === 1 ? "fastest" : `${result.relativeToFastest.toFixed(2)}x slower`} | ${describeRelativeSpeed(result)} | ${result.iterations.toLocaleString("en-US")} |`,
+        hasMultipleCases
+          ? `${baseColumns} | ${result.rank === 1 ? "fastest" : `${result.relativeToFastest.toFixed(2)}x slower`} |`
+          : `${baseColumns} |`,
       );
     }
 
@@ -76,20 +72,12 @@ function formatDuration(valueMs) {
   return `${valueMs.toFixed(3)} ms/op`;
 }
 
-function describeRelativeSpeed(result) {
-  if (result.rank === 1) {
-    return "Best result in this section";
-  }
+function formatPercent(value) {
+  return `${value.toFixed(1)}%`;
+}
 
-  if (result.relativeToFastest <= 1.5) {
-    return "Close to the fastest result";
-  }
-
-  if (result.relativeToFastest <= 3) {
-    return "Noticeably slower, but still in the same tier";
-  }
-
-  return "Meaningfully slower than the fastest path";
+function getBenchmarkScore(result) {
+  return result.medianMs ?? result.averageMs;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

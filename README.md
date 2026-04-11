@@ -2,12 +2,12 @@
 
 <div align="center">
 
-# ◉ beat
+<h1>
+  <img src="./docs/images/beat-brand-dot.gif" alt="Beat brand dot" width="30" height="30" style="vertical-align: -5px;"> beat
+</h1>
 
 Pulse-native JSX for direct-DOM SPA applications.<br>
 _Fine-grained rendering, explicit routing, explicit async state._
-
-Pre-beta release line: `0.2.x`.
 
 </div>
 
@@ -23,14 +23,19 @@ Current framework primitives include:
 - SPA routing with guards, loaders, named outlets, reload, and prefetch
 - explicit async resources with debounce, stale-while-refresh, and shared caches
 
-Beat is no longer a `0.0.x` prototype, but it is still pre-`1.0.0`.
-The current `0.2.x` line should be treated as experimental and suitable for framework development, internal apps, and early adopters who can tolerate API movement.
-
 ## Install
 
 ```sh
 pnpm add @ochairo/beat @ochairo/pulse
 ```
+
+## Scaffold
+
+```sh
+pnpm create @ochairo/beat my-app
+```
+
+That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin.
 
 ## Quick Start
 
@@ -83,9 +88,9 @@ TypeScript:
 ## Documentation
 
 - [Getting Started](./docs/GETTING_STARTED.md)
+- [Motivation](./docs/MOTIVATION.md)
 - [API](./docs/API.md)
 - [Compiler Contract](./docs/COMPILER.md)
-- [Benchmark Methodology](./docs/BENCHMARKS.md)
 - [Support Policy](./docs/SUPPORT.md)
 
 <br>

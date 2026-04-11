@@ -2,6 +2,7 @@ import { formatInteger, formatPercent } from "../../lib/format.js";
 import type { MarketRow } from "../../types.js";
 
 interface EditorRowProps {
+  readonly onHoverRow?: (rowId: number) => void;
   readonly row: () => MarketRow;
 }
 
@@ -13,6 +14,9 @@ export function EditorRow(props: EditorRowProps): JSX.Element {
         "is-focused": props.row().focused,
         "is-up": props.row().change >= 0,
         "is-down": props.row().change < 0,
+      }}
+      onMouseEnter={() => {
+        props.onHoverRow?.(props.row().id);
       }}
     >
       <div class="market-editor__header">

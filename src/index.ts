@@ -11,6 +11,7 @@ export {
   bindClass,
   bindClasses,
   bindFields,
+  bindExactMasked,
   bindMasked,
   bindProperty,
   createObjectKeyMask,

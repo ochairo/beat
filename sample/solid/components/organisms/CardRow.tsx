@@ -6,6 +6,7 @@ import {
 import type { MarketRow } from "../../types.js";
 
 interface CardRowProps {
+  readonly onHoverRow?: (rowId: number) => void;
   readonly row: () => MarketRow;
 }
 
@@ -17,6 +18,9 @@ export function CardRow(props: CardRowProps): JSX.Element {
         "is-focused": props.row().focused,
         "is-up": props.row().change >= 0,
         "is-down": props.row().change < 0,
+      }}
+      onMouseEnter={() => {
+        props.onHoverRow?.(props.row().id);
       }}
     >
       <div class="market-card__header">

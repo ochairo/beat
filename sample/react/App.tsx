@@ -1,9 +1,17 @@
-import { useMemo } from "react";
-import { SURFACE_MODE } from "./config.js";
+import { useMemo, type JSX } from "react";
+import { flushSync } from "react-dom";
+import { STORM_WRITES, SURFACE_MODE, SWEEP_FIELDS_PER_ROW } from "./config.js";
+import { BenchmarkControls } from "./components/molecules/BenchmarkControls.js";
+import { MetricsGrid } from "./components/molecules/MetricsGrid.js";
 import { formatInteger } from "./lib/format.js";
-import { createMarketStore, useFocusedRowId } from "./lib/market-store.js";
+import {
+  createMarketStore,
+  useFocusedRowId,
+  useMetrics,
+} from "./lib/market-store.js";
+import { updateMetrics, waitForVisualSettle } from "./lib/metrics.js";
 import { MarketSurface } from "./components/organisms/MarketSurface.js";
-import type { MarketRow, SurfaceCopy, SurfaceMode } from "./types.js";
+import type { MarketRow, Mode, SurfaceCopy, SurfaceMode } from "./types.js";
 
 interface AppProps {
   readonly initialRows: readonly MarketRow[];
@@ -38,9 +46,94 @@ export function App(props: AppProps): JSX.Element {
     [props.initialRows],
   );
   const focusedRowId = useFocusedRowId(store);
+  const metrics = useMetrics(store);
   const rowIds = store.rowIds;
   const mountedRowCount = rowIds.length;
   const surfaceCopy = getSurfaceCopy(SURFACE_MODE);
+
+  const runMeasured = async (
+    label: string,
+    mode: Mode,
+    execute: () => number,
+  ): Promise<void> => {
+    let writes = 0;
+    const startedAt = performance.now();
+    flushSync(() => {
+      writes = execute();
+    });
+    const writeMs = performance.now() - startedAt;
+
+    await waitForVisualSettle();
+
+    const totalMs = performance.now() - startedAt;
+    const visualMs = Math.max(0, totalMs - writeMs);
+
+    store.updateMetrics((previous) =>
+      updateMetrics(
+        previous,
+        {
+          writeMs,
+          visualMs,
+          totalMs,
+        },
+        writes,
+        mode,
+        label,
+      ),
+    );
+  };
+
+  const runBatchedSweep = async (): Promise<void> => {
+    await runMeasured("Batched sweep", "batched", () => {
+      store.batch(() => {
+        for (const rowId of rowIds) {
+          store.mutateRow(rowId);
+        }
+      });
+      return rowIds.length * SWEEP_FIELDS_PER_ROW;
+    });
+  };
+
+  const runWriteStorm = async (): Promise<void> => {
+    await runMeasured("Write storm", "batched", () => {
+      store.batch(() => {
+        for (let index = 0; index < STORM_WRITES; index += 1) {
+          const rowId = rowIds[index % rowIds.length];
+          if (rowId === undefined) {
+            continue;
+          }
+
+          store.stormRow(rowId);
+        }
+      });
+      return STORM_WRITES * 3;
+    });
+  };
+
+  const runFirstRowChange = async (): Promise<void> => {
+    await runMeasured("First-row change", "single", () => {
+      const rowId = rowIds[0];
+      if (rowId === undefined) {
+        return 0;
+      }
+
+      store.mutateRow(rowId);
+      return SWEEP_FIELDS_PER_ROW;
+    });
+  };
+
+  const hoverRow = async (rowId: number): Promise<void> => {
+    if (rowId === store.getFocusedRowId()) {
+      return;
+    }
+
+    await runMeasured("Focus shift", "batched", () => {
+      store.batch(() => {
+        store.focusRow(rowId);
+      });
+      return 3;
+    });
+  };
 
   return (
     <main className="page">
@@ -49,16 +142,16 @@ export function App(props: AppProps): JSX.Element {
           <div>
             <div className="brand-mark">
               <span className="brand-mark__dot"></span>
-              <span>React / useSyncExternalStore</span>
+              <span>React sample / one app shell</span>
             </div>
             <h1>
-              Same board, but the updates travel through React subscriptions.
+              One SPA shell for interactive use and repeatable workload runs.
             </h1>
             <p>
-              This version keeps the same market-board shape and controls, but
-              it uses row-level React subscriptions through a local external
-              store. When rows change, only subscribed React rows need to
-              reconcile.
+              This sample keeps the same market-board shape and controls,
+              renders the same real UI for interactive use and workload runs,
+              and routes row updates through a local store plus row-level React
+              subscriptions.
             </p>
           </div>
 
@@ -68,14 +161,24 @@ export function App(props: AppProps): JSX.Element {
               <strong>{formatInteger(mountedRowCount)}</strong>
             </div>
             <div className="pill">
-              <span>Strategy</span>
-              <strong>subscriptions</strong>
+              <span>Update model</span>
+              <strong>React row subscriptions</strong>
             </div>
             <div className="pill">
               <span>Focused row</span>
               <strong>{formatInteger(focusedRowId + 1)}</strong>
             </div>
           </div>
+        </div>
+
+        <div className="hero__bottom">
+          <BenchmarkControls
+            rowCount={rowIds.length}
+            onRunBatchedSweep={runBatchedSweep}
+            onRunWriteStorm={runWriteStorm}
+            onRunFirstRowChange={runFirstRowChange}
+          />
+          <MetricsGrid metrics={metrics} />
         </div>
       </section>
 
@@ -88,6 +191,9 @@ export function App(props: AppProps): JSX.Element {
           rowIds={rowIds}
           store={store}
           surfaceMode={SURFACE_MODE}
+          onHoverRow={(rowId) => {
+            void hoverRow(rowId);
+          }}
         />
       </section>
     </main>

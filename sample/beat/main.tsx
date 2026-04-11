@@ -22,7 +22,7 @@ function createAppState(rows: Awaited<ReturnType<typeof fetchMarketRows>>): {
 } {
   const state = pulse<DemoState>({
     metrics: createInitialMetrics(
-      "Ready. Beat mounts once and updates only the touched DOM bindings.",
+      "Ready. This sample uses the same app shell for interactive use and repeatable workload runs.",
     ),
     rows,
     focusedRowId: 0,

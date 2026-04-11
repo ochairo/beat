@@ -7,7 +7,6 @@ import { MetricCard } from "../atoms/MetricCard.js";
 
 interface MetricsGridProps {
   readonly metrics: Pulse<DemoMetrics>;
-  readonly benchmarkMode: boolean;
 }
 
 export const MetricsGrid = component<MetricsGridProps>((props) => {
@@ -53,20 +52,16 @@ export const MetricsGrid = component<MetricsGridProps>((props) => {
         )}
         detail="Fastest full interaction measured so far"
       />
-      {props.benchmarkMode
-        ? null
-        : [
-            <MetricCard
-              label="Leaf writes"
-              value={bindText(props.metrics.totalWrites, formatInteger)}
-              detail="Total Pulse path writes so far"
-            />,
-            <MetricCard
-              label="Operations"
-              value={bindText(props.metrics.operationsRun, formatInteger)}
-              detail="How many demo runs completed"
-            />,
-          ]}
+      <MetricCard
+        label="Leaf writes"
+        value={bindText(props.metrics.totalWrites, formatInteger)}
+        detail="Total Pulse path writes so far"
+      />
+      <MetricCard
+        label="Operations"
+        value={bindText(props.metrics.operationsRun, formatInteger)}
+        detail="How many demo runs completed"
+      />
     </div>
   );
 });

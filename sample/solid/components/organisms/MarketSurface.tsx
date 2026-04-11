@@ -13,15 +13,21 @@ interface MarketSurfaceProps {
 function CardSurface(props: Pick<MarketSurfaceProps, "rows">): JSX.Element {
   return (
     <div class="market-grid">
-      <Index each={props.rows}>{(row) => <CardRow row={row} />}</Index>
+      <Index each={props.rows}>
+        {(row) => <CardRow row={row} onHoverRow={props.onHoverRow} />}
+      </Index>
     </div>
   );
 }
 
-function EditorSurface(props: Pick<MarketSurfaceProps, "rows">): JSX.Element {
+function EditorSurface(
+  props: Pick<MarketSurfaceProps, "onHoverRow" | "rows">,
+): JSX.Element {
   return (
     <div class="editor-grid">
-      <Index each={props.rows}>{(row) => <EditorRow row={row} />}</Index>
+      <Index each={props.rows}>
+        {(row) => <EditorRow row={row} onHoverRow={props.onHoverRow} />}
+      </Index>
     </div>
   );
 }
@@ -51,11 +57,11 @@ function TableSurface(
 
 export function MarketSurface(props: MarketSurfaceProps): JSX.Element {
   if (props.surfaceMode === "cards") {
-    return <CardSurface rows={props.rows} />;
+    return <CardSurface rows={props.rows} onHoverRow={props.onHoverRow} />;
   }
 
   if (props.surfaceMode === "editor") {
-    return <EditorSurface rows={props.rows} />;
+    return <EditorSurface rows={props.rows} onHoverRow={props.onHoverRow} />;
   }
 
   return <TableSurface rows={props.rows} onHoverRow={props.onHoverRow} />;

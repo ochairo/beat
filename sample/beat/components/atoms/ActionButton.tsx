@@ -9,9 +9,14 @@ interface ActionButtonProps {
 
 export const ActionButton = component<ActionButtonProps>((props) => {
   return (
-    <button type="button" class="button" onClick={props.onClick}>
+    <button
+      type="button"
+      class="button"
+      title={props.hint}
+      aria-label={`${props.label}. ${props.hint}`}
+      onClick={props.onClick}
+    >
       <span class="button__label">{props.label}</span>
-      <span class="button__hint">{props.hint}</span>
     </button>
   );
 });

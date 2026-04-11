@@ -31,7 +31,7 @@ export interface DemoState {
 }
 
 export type SurfaceMode = "table" | "cards" | "editor";
-export type Mode = "batched" | "unbatched";
+export type Mode = "batched" | "single";
 
 export interface BenchmarkTiming {
   readonly writeMs: number;
@@ -44,18 +44,15 @@ export type RootPulse<TValue> = Pulse<TValue> & {
 };
 
 export type RowClassState = {
+  baseClassName: string;
   focused: boolean;
+  heatWidth: string;
   positiveChange: boolean;
 };
 
 export interface SurfaceCopy {
   readonly title: string;
   readonly subtitle: string;
-}
-
-export interface NoteItem {
-  readonly title: string;
-  readonly description: string;
 }
 
 export interface FactItem {

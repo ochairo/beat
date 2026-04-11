@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,23 +6,23 @@ import { chromium } from "@playwright/test";
 
 const SAMPLE_PATHS = ["/beat/", "/react/", "/solid/"];
 const SURFACE_MODES = ["table", "cards", "editor"];
-const ITERATIONS = 3;
-const SAMPLE_REPORT_START = "<!-- sample-benchmark-results:start -->";
-const SAMPLE_REPORT_END = "<!-- sample-benchmark-results:end -->";
+const ITERATIONS = 5;
 const SERVER_URL = "http://127.0.0.1:4173";
 const BACKEND_PATH = dirname(fileURLToPath(import.meta.url));
 const BEAT_PATH = resolve(BACKEND_PATH, "../..");
-const DOCS_PATH = resolve(BEAT_PATH, "docs/BENCHMARKS.md");
+const REPORT_PATH = resolve(BEAT_PATH, "benchmarks/sample-comparison.md");
+const SCENARIO_KEYS = [
+  "batchedSweep",
+  "firstRowChange",
+  "writeStorm",
+  "focusShift",
+];
 
 async function main() {
-  await runCommand("pnpm", ["--dir", BEAT_PATH, "sample:build"], {
-    cwd: BACKEND_PATH,
-  });
-
   const hadExistingServer = await isServerResponsive();
   const serverProcess = hadExistingServer
     ? null
-    : spawn("pnpm", ["serve"], {
+    : spawn("pnpm", ["benchmark:serve"], {
         cwd: BACKEND_PATH,
         stdio: "pipe",
         env: process.env,
@@ -40,8 +40,8 @@ async function main() {
         surface: result.surface,
         batchedSweepWriteMs: result.batchedSweep.writeMs,
         batchedSweepTotalMs: result.batchedSweep.totalMs,
-        unbatchedSweepWriteMs: result.unbatchedSweep.writeMs,
-        unbatchedSweepTotalMs: result.unbatchedSweep.totalMs,
+        firstRowChangeWriteMs: result.firstRowChange.writeMs,
+        firstRowChangeTotalMs: result.firstRowChange.totalMs,
         writeStormWriteMs: result.writeStorm.writeMs,
         writeStormTotalMs: result.writeStorm.totalMs,
         focusShiftWriteMs: result.focusShift.writeMs,
@@ -49,11 +49,9 @@ async function main() {
       })),
     );
 
-    const currentDocument = await readFile(DOCS_PATH, "utf8");
-    const nextBlock = renderSampleResultsBlock(results);
-    const nextDocument = replaceGeneratedBlock(currentDocument, nextBlock);
-    await writeFile(DOCS_PATH, nextDocument, "utf8");
-    console.log(`Updated ${DOCS_PATH}`);
+    const reportText = renderSampleResultsBlock(results);
+    await writeFile(REPORT_PATH, reportText, "utf8");
+    console.log(`Wrote ${REPORT_PATH}`);
   } finally {
     if (serverProcess) {
       serverProcess.kill("SIGTERM");
@@ -86,9 +84,7 @@ function runCommand(command, args, options) {
 
 async function isServerResponsive() {
   try {
-    const response = await fetch(
-      `${SERVER_URL}/beat/bench.html?rows=10&surface=table`,
-    );
+    const response = await fetch(`${SERVER_URL}/health`);
     return response.ok;
   } catch {
     return false;
@@ -180,9 +176,39 @@ async function runScenario(page, path, surface) {
     path,
     surface,
     batchedSweep: await runControl("Run batched sweep"),
-    unbatchedSweep: await runControl("Run unbatched sweep"),
+    firstRowChange: await runControl("Run first-row change"),
     writeStorm: await runControl("Run write storm"),
-    focusShift: await runControl("Shift focused row"),
+    focusShift: await runHoverScenario(page, surface),
+  };
+}
+
+async function runHoverScenario(page, surface) {
+  const previousWrite = await readMetricText(page, "Last write burst");
+  const previousTotal = await readMetricText(page, "Last total burst");
+  const targetSelector =
+    surface === "table"
+      ? ".order-book__row"
+      : surface === "cards"
+        ? ".market-card"
+        : ".market-editor";
+
+  await page.locator(targetSelector).nth(1).hover();
+
+  for (;;) {
+    const nextWrite = await readMetricText(page, "Last write burst");
+    const nextTotal = await readMetricText(page, "Last total burst");
+    if (`${nextWrite}|${nextTotal}` !== `${previousWrite}|${previousTotal}`) {
+      break;
+    }
+    await page.waitForTimeout(50);
+  }
+
+  return {
+    writeMs: parseMilliseconds(await readMetricText(page, "Last write burst")),
+    visualMs: parseMilliseconds(
+      await readMetricText(page, "Last visual settle"),
+    ),
+    totalMs: parseMilliseconds(await readMetricText(page, "Last total burst")),
   };
 }
 
@@ -214,8 +240,8 @@ async function collectResults() {
           batchedSweep: averageScenarioMetrics(
             runs.map((run) => run.batchedSweep),
           ),
-          unbatchedSweep: averageScenarioMetrics(
-            runs.map((run) => run.unbatchedSweep),
+          firstRowChange: averageScenarioMetrics(
+            runs.map((run) => run.firstRowChange),
           ),
           writeStorm: averageScenarioMetrics(runs.map((run) => run.writeStorm)),
           focusShift: averageScenarioMetrics(runs.map((run) => run.focusShift)),
@@ -243,7 +269,11 @@ function formatMs(value) {
   return `${value.toFixed(2)} ms`;
 }
 
-function renderScenarioTable(results, scenarioKey, title) {
+function getMetricValue(results, path, surface, scenarioKey, metricKey) {
+  return getResult(results, path, surface)[scenarioKey][metricKey];
+}
+
+function renderScenarioTable(results, scenarioKey, metricKey, title) {
   const lines = [
     `### ${title}`,
     "",
@@ -252,9 +282,27 @@ function renderScenarioTable(results, scenarioKey, title) {
   ];
 
   for (const surface of SURFACE_MODES) {
-    const beat = getResult(results, "/beat/", surface)[scenarioKey].totalMs;
-    const react = getResult(results, "/react/", surface)[scenarioKey].totalMs;
-    const solid = getResult(results, "/solid/", surface)[scenarioKey].totalMs;
+    const beat = getMetricValue(
+      results,
+      "/beat/",
+      surface,
+      scenarioKey,
+      metricKey,
+    );
+    const react = getMetricValue(
+      results,
+      "/react/",
+      surface,
+      scenarioKey,
+      metricKey,
+    );
+    const solid = getMetricValue(
+      results,
+      "/solid/",
+      surface,
+      scenarioKey,
+      metricKey,
+    );
     const winner = [
       { label: "Beat", value: beat },
       { label: "React", value: react },
@@ -274,29 +322,119 @@ function capitalize(value) {
   return `${value[0].toUpperCase()}${value.slice(1)}`;
 }
 
-function renderPlainEnglishRead(results) {
-  const beatWins = [
-    "batchedSweep",
-    "unbatchedSweep",
-    "writeStorm",
-    "focusShift",
-  ].flatMap((scenarioKey) =>
-    SURFACE_MODES.map((surface) => {
-      const beat = getResult(results, "/beat/", surface)[scenarioKey].totalMs;
-      const react = getResult(results, "/react/", surface)[scenarioKey].totalMs;
-      const solid = getResult(results, "/solid/", surface)[scenarioKey].totalMs;
-      return beat <= react && beat <= solid
-        ? `${scenarioKey}:${surface}`
-        : null;
-    }).filter(Boolean),
-  ).length;
+function formatScenarioLabel(scenarioKey) {
+  return scenarioKey
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase());
+}
 
+function buildScenarioEntries(results, metricKey) {
+  return SCENARIO_KEYS.flatMap((scenarioKey) =>
+    SURFACE_MODES.map((surface) => {
+      const beat = getMetricValue(
+        results,
+        "/beat/",
+        surface,
+        scenarioKey,
+        metricKey,
+      );
+      const react = getMetricValue(
+        results,
+        "/react/",
+        surface,
+        scenarioKey,
+        metricKey,
+      );
+      const solid = getMetricValue(
+        results,
+        "/solid/",
+        surface,
+        scenarioKey,
+        metricKey,
+      );
+      const winner = [
+        { label: "Beat", value: beat },
+        { label: "React", value: react },
+        { label: "Solid", value: solid },
+      ].sort((left, right) => left.value - right.value)[0];
+
+      return {
+        beat,
+        scenarioKey,
+        surface,
+        winner,
+      };
+    }),
+  );
+}
+
+function renderSummaryLines(results, metricKey, label, interpretation) {
+  const scenarioEntries = buildScenarioEntries(results, metricKey);
+  const beatWins = scenarioEntries.filter(
+    (entry) => entry.winner.label === "Beat",
+  ).length;
+  const scenarioWinCounts = new Map(
+    SCENARIO_KEYS.map((scenarioKey) => [scenarioKey, 0]),
+  );
+
+  for (const entry of scenarioEntries) {
+    if (entry.winner.label !== "Beat") {
+      continue;
+    }
+
+    scenarioWinCounts.set(
+      entry.scenarioKey,
+      (scenarioWinCounts.get(entry.scenarioKey) ?? 0) + 1,
+    );
+  }
+
+  const strongestScenario = [...scenarioWinCounts.entries()].sort(
+    (left, right) => right[1] - left[1],
+  )[0] ?? ["batchedSweep", 0];
+  const weakestEntry = scenarioEntries
+    .filter((entry) => entry.winner.label !== "Beat")
+    .sort(
+      (left, right) =>
+        right.beat / right.winner.value - left.beat / left.winner.value,
+    )[0];
+
+  const strongestLine =
+    strongestScenario[1] > 0
+      ? `- Beat is currently strongest on ${formatScenarioLabel(strongestScenario[0]).toLowerCase()}, where it leads ${strongestScenario[1]} of the 3 surfaces in this snapshot.`
+      : "- Beat does not currently lead any full scenario family in this snapshot.";
+  const weakestLine = weakestEntry
+    ? `- The largest remaining gap is ${formatScenarioLabel(weakestEntry.scenarioKey).toLowerCase()} on the ${weakestEntry.surface} surface, where Beat is ${(weakestEntry.beat / weakestEntry.winner.value).toFixed(2)}x slower than ${weakestEntry.winner.label}.`
+    : "- Beat currently holds the lead across all measured sample scenarios in this snapshot.";
+
+  return [
+    `#### ${label}`,
+    "",
+    `- Using ${interpretation}, Beat wins ${beatWins} of the 12 current sample scenarios in this snapshot.`,
+    strongestLine,
+    weakestLine,
+    "",
+  ].join("\n");
+}
+
+function renderPlainEnglishRead(results) {
   return [
     "### Plain-English Read",
     "",
-    `- Using total interaction time, Beat wins ${beatWins} of the 12 current sample scenarios in this snapshot.`,
-    "- Beat is strongest on the sweep and write-storm paths, where it stays well ahead across all three surfaces.",
-    "- The remaining weak spot is focus shift, especially on the editor surface, where browser-facing visual settle cost still dominates.",
+    "This sample report now separates responsiveness from completion:",
+    "",
+    renderSummaryLines(
+      results,
+      "writeMs",
+      "Responsiveness",
+      "synchronous write burst",
+    ).trimEnd(),
+    "",
+    renderSummaryLines(
+      results,
+      "totalMs",
+      "Completion",
+      "total interaction time",
+    ).trimEnd(),
     "- This block is now generated from the same Playwright run instead of being maintained manually, so the docs stay aligned with the actual benchmark output.",
     "",
   ].join("\n");
@@ -304,41 +442,62 @@ function renderPlainEnglishRead(results) {
 
 function renderSampleResultsBlock(results) {
   return [
+    "# Beat Sample Benchmark Report",
     "",
     `Generated: ${new Date().toISOString()}`,
     "",
-    renderScenarioTable(results, "batchedSweep", "Batched Sweep Total Time"),
     renderScenarioTable(
       results,
-      "unbatchedSweep",
-      "Unbatched Sweep Total Time",
+      "firstRowChange",
+      "writeMs",
+      "First-Row Change Write Burst",
     ),
-    renderScenarioTable(results, "writeStorm", "Write Storm Total Time"),
-    renderScenarioTable(results, "focusShift", "Focus Shift Total Time"),
+    renderScenarioTable(
+      results,
+      "batchedSweep",
+      "writeMs",
+      "Batched Sweep Write Burst",
+    ),
+    renderScenarioTable(
+      results,
+      "writeStorm",
+      "writeMs",
+      "Write Storm Write Burst",
+    ),
+    renderScenarioTable(
+      results,
+      "focusShift",
+      "writeMs",
+      "Focus Shift Write Burst",
+    ),
+    renderScenarioTable(
+      results,
+      "batchedSweep",
+      "totalMs",
+      "Batched Sweep Total Time",
+    ),
+    renderScenarioTable(
+      results,
+      "firstRowChange",
+      "totalMs",
+      "First-Row Change Total Time",
+    ),
+    renderScenarioTable(
+      results,
+      "writeStorm",
+      "totalMs",
+      "Write Storm Total Time",
+    ),
+    renderScenarioTable(
+      results,
+      "focusShift",
+      "totalMs",
+      "Focus Shift Total Time",
+    ),
     renderPlainEnglishRead(results),
   ]
     .join("\n")
     .trimEnd();
-}
-
-function replaceGeneratedBlock(documentText, generatedBlock) {
-  const startIndex = documentText.indexOf(SAMPLE_REPORT_START);
-  const endIndex = documentText.indexOf(SAMPLE_REPORT_END);
-
-  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
-    throw new Error(
-      "Could not find sample benchmark markers in docs/BENCHMARKS.md",
-    );
-  }
-
-  const blockStart = startIndex + SAMPLE_REPORT_START.length;
-  return [
-    documentText.slice(0, blockStart),
-    "\n\n",
-    generatedBlock,
-    "\n\n",
-    documentText.slice(endIndex),
-  ].join("");
 }
 
 main().catch((error) => {

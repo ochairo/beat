@@ -8,9 +8,17 @@ This guide walks through a small Beat application using:
 - route prefetch
 - explicit async resources
 
-Beat is still pre-`1.0.0`, but this guide reflects the current intended usage model.
+This guide reflects the recommended Beat `1.0.x` usage model.
 
-## 1. Install
+## 1. Scaffold Or Install
+
+Fastest path:
+
+```sh
+pnpm create @ochairo/beat my-app
+```
+
+If you want to wire Beat into an existing app manually:
 
 ```sh
 pnpm add @ochairo/beat @ochairo/pulse
@@ -151,7 +159,9 @@ This example demonstrates Beat's intended model:
 
 A few Beat-specific details matter:
 
+- Beat assumes Pulse's authentic exact-path runtime contract; use real `pulse(...)` nodes, not lookalike objects with `get()`/`on()` methods
 - `For` passes a `Pulse<T>` item, not a plain value
+- exact-path child updates stay local, so updating one `For` item field should not remount sibling entries
 - `createResource()` returns explicit state and cleanup, so component-owned resources should be disposed with `onCleanup()`
 - `router.reload()` reruns the current route loaders
 - `router.prefetch(to)` warms route data without changing history or current route state
@@ -164,4 +174,4 @@ After this guide, the most useful references are:
 - [Compiler Contract](./COMPILER.md)
 - [Benchmark Methodology](./BENCHMARKS.md)
 - [Support Policy](./SUPPORT.md)
-- [Development Plan](./DEVELOP_PLAN.md)
+- [1.0 Checklist](./V1_CHECKLIST.md)

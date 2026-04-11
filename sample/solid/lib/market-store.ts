@@ -61,7 +61,7 @@ export function createMarketModel(
   const rows = createMutable(initialRows.slice() as MutableMarketRow[]);
   const metrics = createMutable(
     createInitialMetrics(
-      "Ready. Solid is updating the board through path-level store writes.",
+      "Ready. This sample uses the same app shell for interactive use and repeatable workload runs.",
     ),
   );
   const focusedRowId = createMutable({ value: 0 });
@@ -113,11 +113,6 @@ export function createMarketModel(
     setRowFields(rowIndex, stormRowFields(row));
   };
 
-  const focusNextRow = (): void => {
-    const nextFocusedId = (focusedRowId.value + 1) % rows.length;
-    focusRow(nextFocusedId);
-  };
-
   const focusRow = (rowId: number): void => {
     if (rowId === focusedRowId.value) {
       return;
@@ -145,7 +140,6 @@ export function createMarketModel(
     setRowFields,
     mutateRowAtIndex,
     stormRowAtIndex,
-    focusNextRow,
   };
 }
 

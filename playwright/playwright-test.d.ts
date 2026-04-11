@@ -1,6 +1,8 @@
 declare module "@playwright/test" {
   export interface Locator {
     first(): Locator;
+    hover(): Promise<void>;
+    nth(index: number): Locator;
     filter(options: { hasText?: string }): Locator;
     locator(selector: string): Locator;
     click(): Promise<void>;

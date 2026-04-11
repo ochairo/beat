@@ -1,8 +1,12 @@
-import { SURFACE_MODE } from "./config.js";
+import { batch } from "solid-js";
+import { STORM_WRITES, SURFACE_MODE, SWEEP_FIELDS_PER_ROW } from "./config.js";
+import { BenchmarkControls } from "./components/molecules/BenchmarkControls.js";
+import { MetricsGrid } from "./components/molecules/MetricsGrid.js";
 import { formatInteger } from "./lib/format.js";
 import { createMarketModel } from "./lib/market-store.js";
+import { updateMetrics, waitForVisualSettle } from "./lib/metrics.js";
 import { MarketSurface } from "./components/organisms/MarketSurface.js";
-import type { MarketRow, SurfaceCopy, SurfaceMode } from "./types.js";
+import type { MarketRow, Mode, SurfaceCopy, SurfaceMode } from "./types.js";
 
 interface AppProps {
   readonly initialRows: readonly MarketRow[];
@@ -37,6 +41,83 @@ export function App(props: AppProps): JSX.Element {
   const mountedRowCount = model.rows.length;
   const surfaceCopy = getSurfaceCopy(SURFACE_MODE);
 
+  const runMeasured = async (
+    label: string,
+    mode: Mode,
+    execute: () => number,
+  ): Promise<void> => {
+    const startedAt = performance.now();
+    const writes = execute();
+    const writeMs = performance.now() - startedAt;
+
+    await waitForVisualSettle();
+
+    const totalMs = performance.now() - startedAt;
+    const visualMs = Math.max(0, totalMs - writeMs);
+
+    Object.assign(
+      model.metrics,
+      updateMetrics(
+        model.metrics,
+        {
+          writeMs,
+          visualMs,
+          totalMs,
+        },
+        writes,
+        mode,
+        label,
+      ),
+    );
+  };
+
+  const runBatchedSweep = async (): Promise<void> => {
+    await runMeasured("Batched sweep", "batched", () => {
+      batch(() => {
+        for (let index = 0; index < model.rows.length; index += 1) {
+          model.mutateRowAtIndex(index);
+        }
+      });
+      return model.rows.length * SWEEP_FIELDS_PER_ROW;
+    });
+  };
+
+  const runWriteStorm = async (): Promise<void> => {
+    await runMeasured("Write storm", "batched", () => {
+      batch(() => {
+        for (let index = 0; index < STORM_WRITES; index += 1) {
+          const rowIndex = index % model.rows.length;
+          model.stormRowAtIndex(rowIndex);
+        }
+      });
+      return STORM_WRITES * 3;
+    });
+  };
+
+  const runFirstRowChange = async (): Promise<void> => {
+    await runMeasured("First-row change", "single", () => {
+      if (model.rows.length === 0) {
+        return 0;
+      }
+
+      model.mutateRowAtIndex(0);
+      return SWEEP_FIELDS_PER_ROW;
+    });
+  };
+
+  const hoverRow = (rowId: number): void => {
+    if (rowId === model.focusedRowId.value) {
+      return;
+    }
+
+    void runMeasured("Focus shift", "batched", () => {
+      batch(() => {
+        model.focusRow(rowId);
+      });
+      return 3;
+    });
+  };
+
   return (
     <main class="page">
       <section class="hero">
@@ -44,16 +125,16 @@ export function App(props: AppProps): JSX.Element {
           <div>
             <div class="brand-mark">
               <span class="brand-mark__dot"></span>
-              <span>Solid / createStore</span>
+              <span>Solid sample / one app shell</span>
             </div>
             <h1>
-              Same board, but the updates travel through Solid path writes.
+              One SPA shell for interactive use and repeatable workload runs.
             </h1>
             <p>
-              This version keeps the same market-board shape and controls, but
-              it uses Solid's store graph and path-level writes. When rows
-              change, Solid invalidates only the DOM edges touched by those
-              store paths.
+              This sample keeps the same market-board shape and controls,
+              renders the same real UI for interactive use and workload runs,
+              and routes row updates through Solid's store graph and path-level
+              writes.
             </p>
           </div>
 
@@ -63,14 +144,24 @@ export function App(props: AppProps): JSX.Element {
               <strong>{formatInteger(mountedRowCount)}</strong>
             </div>
             <div class="pill">
-              <span>Strategy</span>
-              <strong>createStore</strong>
+              <span>Update model</span>
+              <strong>Solid path writes</strong>
             </div>
             <div class="pill">
               <span>Focused row</span>
               <strong>{formatInteger(model.focusedRowId.value + 1)}</strong>
             </div>
           </div>
+        </div>
+
+        <div class="hero__bottom">
+          <BenchmarkControls
+            rowCount={model.rows.length}
+            onRunBatchedSweep={runBatchedSweep}
+            onRunWriteStorm={runWriteStorm}
+            onRunFirstRowChange={runFirstRowChange}
+          />
+          <MetricsGrid metrics={model.metrics} />
         </div>
       </section>
 
@@ -82,9 +173,7 @@ export function App(props: AppProps): JSX.Element {
         <MarketSurface
           rows={model.rows}
           surfaceMode={SURFACE_MODE}
-          onHoverRow={(rowId) => {
-            model.focusRow(rowId);
-          }}
+          onHoverRow={hoverRow}
         />
       </section>
     </main>

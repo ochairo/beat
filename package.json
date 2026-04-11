@@ -1,6 +1,6 @@
 {
   "name": "@ochairo/beat",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Pulse-native SPA runtime for DOM-first applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -31,21 +31,11 @@
     "!dist/**/*.map"
   ],
   "scripts": {
-    "benchmark": "pnpm --dir ../pulse build && pnpm build && node ./benchmarks/runtime.mjs",
-    "benchmark:report": "pnpm --dir ../pulse build && pnpm build && node ./benchmarks/report.mjs",
-    "benchmark:report:all": "pnpm benchmark:report && pnpm sample:report",
+    "benchmark:prepare": "pnpm --dir ../pulse build && pnpm build",
+    "benchmark": "pnpm benchmark:prepare && node ./benchmarks/runtime.mjs",
+    "benchmark:report": "pnpm benchmark:prepare && node ./benchmarks/report.mjs",
     "build": "pnpm clean && tsc && pnpm build:minify",
     "build:minify": "esbuild dist/index.js --outdir=dist --format=esm --allow-overwrite --minify --legal-comments=none --tree-shaking=true",
-    "sample": "pnpm --dir sample/beat dev",
-    "sample:beat": "pnpm --dir sample/beat dev",
-    "sample:backend": "pnpm --dir sample/backend dev",
-    "sample:react": "pnpm --dir sample/react dev",
-    "sample:solid": "pnpm --dir sample/solid dev",
-    "sample:build": "pnpm --dir sample/beat build && pnpm --dir sample/react build && pnpm --dir sample/solid build",
-    "sample:report": "pnpm --dir sample/backend report",
-    "sample:serve": "pnpm --dir sample/backend serve",
-    "sample:test:performance": "pnpm sample:report",
-    "sample:test:performance:raw": "pnpm --dir sample/backend test:performance",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -62,7 +52,7 @@
   "author": "ochairo",
   "license": "MIT",
   "dependencies": {
-    "@ochairo/pulse": "file:../pulse"
+    "@ochairo/pulse": "^1.0.7"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",

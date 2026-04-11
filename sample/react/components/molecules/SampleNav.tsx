@@ -1,3 +1,5 @@
+import type { JSX } from "react";
+
 export function SampleNav(): JSX.Element {
   return (
     <nav className="sample-nav">

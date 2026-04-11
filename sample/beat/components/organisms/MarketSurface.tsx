@@ -12,29 +12,31 @@ interface MarketSurfaceProps {
   readonly surfaceMode: SurfaceMode;
 }
 
-const CardSurface = component<{ rows: Pulse<readonly MarketRow[]> }>(
-  (props) => {
-    return (
-      <div class="market-grid">
-        <For each={props.rows} key={(value) => value.id}>
-          {(row) => <CardRow row={row} />}
-        </For>
-      </div>
-    );
-  },
-);
+const CardSurface = component<{
+  onHoverRow: ((rowId: number) => void) | undefined;
+  rows: Pulse<readonly MarketRow[]>;
+}>((props) => {
+  return (
+    <div class="market-grid">
+      <For each={props.rows} key={(value) => value.id}>
+        {(row) => <CardRow row={row} onHoverRow={props.onHoverRow} />}
+      </For>
+    </div>
+  );
+});
 
-const EditorSurface = component<{ rows: Pulse<readonly MarketRow[]> }>(
-  (props) => {
-    return (
-      <div class="editor-grid">
-        <For each={props.rows} key={(value) => value.id}>
-          {(row) => <EditorRow row={row} />}
-        </For>
-      </div>
-    );
-  },
-);
+const EditorSurface = component<{
+  onHoverRow: ((rowId: number) => void) | undefined;
+  rows: Pulse<readonly MarketRow[]>;
+}>((props) => {
+  return (
+    <div class="editor-grid">
+      <For each={props.rows} key={(value) => value.id}>
+        {(row) => <EditorRow row={row} onHoverRow={props.onHoverRow} />}
+      </For>
+    </div>
+  );
+});
 
 const TableSurface = component<{
   onHoverRow: ((rowId: number) => void) | undefined;
@@ -62,11 +64,11 @@ const TableSurface = component<{
 
 export const MarketSurface = component<MarketSurfaceProps>((props) => {
   if (props.surfaceMode === "cards") {
-    return <CardSurface rows={props.rows} />;
+    return <CardSurface rows={props.rows} onHoverRow={props.onHoverRow} />;
   }
 
   if (props.surfaceMode === "editor") {
-    return <EditorSurface rows={props.rows} />;
+    return <EditorSurface rows={props.rows} onHoverRow={props.onHoverRow} />;
   }
 
   return <TableSurface rows={props.rows} onHoverRow={props.onHoverRow} />;

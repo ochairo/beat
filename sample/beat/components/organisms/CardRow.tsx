@@ -3,31 +3,42 @@ import { component, onCleanup, type BeatCleanup } from "@ochairo/beat";
 import type { Pulse } from "@ochairo/pulse";
 import type { MarketRow, RowClassState } from "../../types.js";
 import {
-  applyHeatFill,
+  applyHeatWidth,
+  applyRowClassState,
   applyRowState,
   bindMarketRow,
   disposeCleanups,
   getRowClassName,
   mountTextNode,
+  readHeatWidth,
   registerCleanup,
 } from "../../lib/dom-bindings.js";
 import {
   formatCurrency,
-  formatHeatTransform,
   formatInteger,
   formatPercent,
 } from "../../lib/format.js";
 
 interface CardRowProps {
+  readonly onHoverRow?: (rowId: number) => void;
   readonly row: Pulse<MarketRow>;
 }
 
 export const CardRow = component<CardRowProps>((props) => {
   const currentRow = props.row.get();
+  const initialClassName = getRowClassName("market-card", currentRow);
   const cleanups: BeatCleanup[] = [];
   const classState: RowClassState = {
+    baseClassName: "market-card",
     focused: currentRow.focused,
+    heatWidth: readHeatWidth(currentRow.heat),
     positiveChange: currentRow.change >= 0,
+  };
+  const fieldState = {
+    priceText: formatCurrency(currentRow.price),
+    changeText: formatPercent(currentRow.change),
+    volumeText: formatInteger(currentRow.volume),
+    tradesText: formatInteger(currentRow.trades),
   };
   let cardElement: HTMLElement | undefined;
   let priceTextNode: Text | undefined;
@@ -58,41 +69,97 @@ export const CardRow = component<CardRowProps>((props) => {
     const boundVolumeTextNode = volumeTextNode;
     const boundTradesTextNode = tradesTextNode;
     const boundHeatFillElement = heatFillElement;
+    const boundFieldState = fieldState;
+
+    const setPriceText = (value: number): void => {
+      const nextPriceText = formatCurrency(value);
+
+      if (nextPriceText !== boundFieldState.priceText) {
+        boundFieldState.priceText = nextPriceText;
+        boundPriceTextNode.data = nextPriceText;
+      }
+    };
+
+    const setChangeText = (value: number): void => {
+      const nextChangeText = formatPercent(value);
+
+      if (nextChangeText !== boundFieldState.changeText) {
+        boundFieldState.changeText = nextChangeText;
+        boundChangeTextNode.data = nextChangeText;
+      }
+    };
+
+    const setVolumeText = (value: number): void => {
+      const nextVolumeText = formatInteger(value);
+
+      if (nextVolumeText !== boundFieldState.volumeText) {
+        boundFieldState.volumeText = nextVolumeText;
+        boundVolumeTextNode.data = nextVolumeText;
+      }
+    };
+
+    const setTradesText = (value: number): void => {
+      const nextTradesText = formatInteger(value);
+
+      if (nextTradesText !== boundFieldState.tradesText) {
+        boundFieldState.tradesText = nextTradesText;
+        boundTradesTextNode.data = nextTradesText;
+      }
+    };
+
+    const setHeatFill = (value: number): void => {
+      const nextHeatWidth = readHeatWidth(value);
+
+      if (nextHeatWidth !== boundClassState.heatWidth) {
+        boundClassState.heatWidth = nextHeatWidth;
+        applyHeatWidth(boundHeatFillElement, nextHeatWidth);
+      }
+    };
+
     registerCleanup(
       cleanups,
       bindMarketRow(props.row, {
         applyAll(value) {
           applyRowState(boundCardElement, value, boundClassState);
-          boundPriceTextNode.data = formatCurrency(value.price);
-          boundChangeTextNode.data = formatPercent(value.change);
-          boundVolumeTextNode.data = formatInteger(value.volume);
-          boundTradesTextNode.data = formatInteger(value.trades);
-          applyHeatFill(boundHeatFillElement, value.heat);
+          setPriceText(value.price);
+          setChangeText(value.change);
+          setVolumeText(value.volume);
+          setTradesText(value.trades);
+          setHeatFill(value.heat);
         },
         applyPrice(value) {
-          boundPriceTextNode.data = formatCurrency(value);
+          setPriceText(value);
         },
-        applyChange(value, nextRow) {
-          boundChangeTextNode.data = formatPercent(value);
-          if (
-            value >= 0 !== boundClassState.positiveChange ||
-            nextRow.focused !== boundClassState.focused
-          ) {
-            applyRowState(boundCardElement, nextRow, boundClassState);
+        applyChange(value) {
+          setChangeText(value);
+          const nextPositiveChange = value >= 0;
+
+          if (nextPositiveChange !== boundClassState.positiveChange) {
+            applyRowClassState(
+              boundCardElement,
+              boundClassState,
+              boundClassState.focused,
+              nextPositiveChange,
+            );
           }
         },
         applyVolume(value) {
-          boundVolumeTextNode.data = formatInteger(value);
+          setVolumeText(value);
         },
         applyTrades(value) {
-          boundTradesTextNode.data = formatInteger(value);
+          setTradesText(value);
         },
         applyHeat(value) {
-          applyHeatFill(boundHeatFillElement, value);
+          setHeatFill(value);
         },
-        applyFocused(_value, nextRow) {
-          if (nextRow.focused !== boundClassState.focused) {
-            applyRowState(boundCardElement, nextRow, boundClassState);
+        applyFocused(value) {
+          if (value !== boundClassState.focused) {
+            applyRowClassState(
+              boundCardElement,
+              boundClassState,
+              value,
+              boundClassState.positiveChange,
+            );
           }
         },
       }),
@@ -105,7 +172,10 @@ export const CardRow = component<CardRowProps>((props) => {
 
   return (
     <article
-      class={getRowClassName("market-card", currentRow)}
+      class={initialClassName}
+      onMouseEnter={() => {
+        props.onHoverRow?.(currentRow.id);
+      }}
       ref={(node) => {
         if (node instanceof HTMLElement) {
           cardElement = node;
@@ -126,13 +196,9 @@ export const CardRow = component<CardRowProps>((props) => {
         class="market-card__price"
         ref={(node) => {
           if (node instanceof HTMLElement) {
-            mountTextNode(
-              node,
-              formatCurrency(currentRow.price),
-              (textNode) => {
-                priceTextNode = textNode;
-              },
-            );
+            mountTextNode(node, fieldState.priceText, (textNode) => {
+              priceTextNode = textNode;
+            });
             tryBind();
           }
         }}
@@ -143,13 +209,9 @@ export const CardRow = component<CardRowProps>((props) => {
           <strong
             ref={(node) => {
               if (node instanceof HTMLElement) {
-                mountTextNode(
-                  node,
-                  formatPercent(currentRow.change),
-                  (textNode) => {
-                    changeTextNode = textNode;
-                  },
-                );
+                mountTextNode(node, fieldState.changeText, (textNode) => {
+                  changeTextNode = textNode;
+                });
                 tryBind();
               }
             }}
@@ -160,13 +222,9 @@ export const CardRow = component<CardRowProps>((props) => {
           <strong
             ref={(node) => {
               if (node instanceof HTMLElement) {
-                mountTextNode(
-                  node,
-                  formatInteger(currentRow.volume),
-                  (textNode) => {
-                    volumeTextNode = textNode;
-                  },
-                );
+                mountTextNode(node, fieldState.volumeText, (textNode) => {
+                  volumeTextNode = textNode;
+                });
                 tryBind();
               }
             }}
@@ -177,13 +235,9 @@ export const CardRow = component<CardRowProps>((props) => {
           <strong
             ref={(node) => {
               if (node instanceof HTMLElement) {
-                mountTextNode(
-                  node,
-                  formatInteger(currentRow.trades),
-                  (textNode) => {
-                    tradesTextNode = textNode;
-                  },
-                );
+                mountTextNode(node, fieldState.tradesText, (textNode) => {
+                  tradesTextNode = textNode;
+                });
                 tryBind();
               }
             }}
@@ -195,7 +249,7 @@ export const CardRow = component<CardRowProps>((props) => {
         <div class="row-heatbar">
           <div
             class="row-heatbar__fill"
-            style={{ transform: formatHeatTransform(currentRow.heat) }}
+            style={{ transform: `scaleX(${classState.heatWidth})` }}
             ref={(node) => {
               if (node instanceof HTMLElement) {
                 heatFillElement = node;

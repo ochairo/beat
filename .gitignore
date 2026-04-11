@@ -1,4 +1,7 @@
 node_modules/
 dist/
 .test-results/
+benchmarks/
+sample/*/dist/
 .DS_Store
+docs/V1_CHECKLIST.md

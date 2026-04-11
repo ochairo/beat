@@ -1,4 +1,4 @@
-import type { Pulse, PulseMutation } from "@ochairo/pulse";
+import { isPulse, type Pulse, type PulseMutation } from "@ochairo/pulse";
 import {
   bindClass,
   bindProperty,
@@ -65,15 +65,6 @@ interface BeatForEntry<TValue> {
 const noop = (): void => {};
 const scopeStack: BeatScope[] = [];
 
-function isPulseLike(value: unknown): value is Pulse<unknown> {
-  return (
-    (typeof value === "object" || typeof value === "function") &&
-    value !== null &&
-    typeof (value as { get?: unknown }).get === "function" &&
-    typeof (value as { on?: unknown }).on === "function"
-  );
-}
-
 function isBeatRendered(value: unknown): value is BeatRendered<Node> {
   return (
     typeof value === "object" &&
@@ -112,7 +103,7 @@ function normalizeRendered(child: BeatJsxChild): BeatRendered<Node> {
     };
   }
 
-  if (isPulseLike(child)) {
+  if (isPulse(child)) {
     return bindText(child);
   }
 
@@ -274,7 +265,7 @@ function applyInternalBindings(
 
     for (const [bindingName, bindingValue] of Object.entries(value)) {
       if (propertyName === "__beatClassBindings") {
-        if (isPulseLike(bindingValue)) {
+        if (isPulse(bindingValue)) {
           cleanups.push(bindClass(element, bindingName, bindingValue));
         } else {
           applyBindingClassValue(element, bindingName, bindingValue);
@@ -283,7 +274,7 @@ function applyInternalBindings(
       }
 
       if (propertyName === "__beatStyleBindings") {
-        if (isPulseLike(bindingValue) && element instanceof HTMLElement) {
+        if (isPulse(bindingValue) && element instanceof HTMLElement) {
           cleanups.push(bindStyle(element, bindingName, bindingValue));
         } else {
           applyBindingStyleValue(element, bindingName, bindingValue);
@@ -291,7 +282,7 @@ function applyInternalBindings(
         continue;
       }
 
-      if (isPulseLike(bindingValue)) {
+      if (isPulse(bindingValue)) {
         cleanups.push(bindProperty(element, bindingName, bindingValue));
       } else {
         applyPropertyOrAttribute(element, bindingName, bindingValue);
@@ -523,8 +514,11 @@ export function forEach<TValue>(
   fragment.append(start, end);
   mountEntries(items.get(), fragment);
 
-  const unsubscribe = items.on((event) => {
-    if (isStructuralArrayChange(event.changes)) {
+  const unsubscribeItems = items.on((event) => {
+    if (
+      isStructuralArrayChange(event.changes) &&
+      event.currentValue.length === event.previousValue.length
+    ) {
       const parent = end.parentNode;
       if (!parent) {
         return;
@@ -537,10 +531,20 @@ export function forEach<TValue>(
     updateStableEntries(event.currentValue);
   });
 
+  const unsubscribeLength = items.length.on(() => {
+    const parent = end.parentNode;
+    if (!parent) {
+      return;
+    }
+
+    mountEntries(items.get(), parent);
+  });
+
   return {
     node: fragment,
     cleanup: () => {
-      unsubscribe();
+      unsubscribeItems();
+      unsubscribeLength();
       for (const entry of entries) {
         entry.cleanup();
       }
@@ -608,7 +612,7 @@ export function jsx<TProps>(
       continue;
     }
 
-    if (isPulseLike(value)) {
+    if (isPulse(value)) {
       const applyValue = createPropertyOrAttributeApplier(
         element,
         propertyName,

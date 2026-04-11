@@ -2,20 +2,20 @@
 
 This document describes the current public API of `@ochairo/beat`.
 
-Beat is still pre-`1.0.0`, so this reference documents the current contract, not a frozen long-term guarantee.
-For the broader framework direction and release goals, see `docs/DEVELOP_PLAN.md`.
+This reference documents Beat's stable `1.0.x` contract for client-rendered SPA applications.
+For the broader framework direction and release goals, see `docs/V1_CHECKLIST.md`.
 For compiler behavior and environment/versioning policy, see `docs/COMPILER.md` and `docs/SUPPORT.md`.
 
 ## Stability
 
-Beat is currently in the `0.2.x` release line.
+Beat is currently in the `1.0.x` release line.
 
 That means:
 
-- the package is past the `0.0.x` prototype stage
-- the framework direction and primary primitives are established
-- API changes are still allowed when they improve correctness, consistency, or long-term design
-- production use should be limited to teams that are comfortable tracking framework changes closely
+- the public API is stable within the documented client-rendered SPA scope
+- breaking changes are reserved for future major versions
+- minor releases should add features without breaking existing contracts
+- patch releases should focus on fixes and non-breaking refinements
 
 ## Package Entry Points
 
@@ -71,6 +71,7 @@ It does not use component rerender-by-default as its main update model.
 The intended model is:
 
 - keep state in `@ochairo/pulse`
+- rely on Pulse's exact-path semantics, where authentic Pulse nodes notify only the subscribed path unless you opt into broader behavior in Pulse itself
 - bind DOM directly to pulse values or pulse-backed objects
 - use JSX as authoring syntax, not as permission to rerender whole trees
 - use explicit router and resource state instead of hidden framework state machines
@@ -212,6 +213,8 @@ interface ForProps<TValue> {
 }
 ```
 
+`For` keeps a stable `Pulse<TValue>` per keyed entry. Exact-path writes like `rows[0].label.set(...)` update that entry in place and should not remount sibling entries.
+
 Function form:
 
 ```ts
@@ -333,6 +336,7 @@ bindFields<TValue extends object>(
 
 Bind an object-shaped Pulse node by field.
 This is the preferred maintainable path for repeated object-shaped UI where a single object write updates several related fields.
+Beat subscribes to each exact child field directly, so `node.count.set(...)` or an ancestor replacement that changes `count` both update the bound field without relying on parent listener fanout.
 
 ### `bindMasked(node, binding)`
 
@@ -345,6 +349,7 @@ bindMasked<TValue>(
 
 Use a bitmask-driven binding strategy for extremely hot repeated-object update paths.
 This is a lower-level performance primitive than `bindFields()`.
+For object-like values, Beat tracks immediate exact child paths and applies the mask from those child mutations instead of assuming object-level listeners see descendant writes.
 
 ### `createObjectKeyMask(maskByKey, fullMask)`
 
@@ -361,6 +366,7 @@ Helper for turning Pulse object-key mutations into bitmasks consumed by `bindMas
 
 `mountEach(...)` is a DOM-level list mounting helper used by Beat's collection rendering path.
 Prefer `For` or `forEach(...)` for normal application code unless you are building low-level abstractions.
+It watches exact array replacement and `length` changes, which matches Pulse's exact-path array semantics.
 
 ### `on(element, event, handler, options?)`
 
@@ -717,8 +723,7 @@ These are not yet part of the completed platform story:
 
 - SSR
 - hydration
-- a stable post-`1.0.0` compatibility guarantee
-- a complete long-form docs set beyond the current reference and development plan
+- a broader full-stack platform surface beyond the documented SPA runtime and compiler scope
 
 ## Recommended Starting Surface
 

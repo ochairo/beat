@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import type { FactItem } from "../../types.js";
 
 interface DemoFactsPanelProps {
@@ -9,7 +10,9 @@ export function DemoFactsPanel(props: DemoFactsPanelProps): JSX.Element {
     <section className="panel">
       <div className="panel__title">
         <h3>Demo facts</h3>
-        <span className="panel__subtitle">Concrete numbers behind the screen</span>
+        <span className="panel__subtitle">
+          Concrete numbers behind the screen
+        </span>
       </div>
       <ul className="fact-list">
         {props.items.map((item) => (

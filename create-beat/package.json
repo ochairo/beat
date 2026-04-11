@@ -1,0 +1,37 @@
+{
+  "name": "@ochairo/create-beat",
+  "version": "1.0.0",
+  "description": "Scaffold a Beat application with Vite, TypeScript, and Pulse.",
+  "type": "module",
+  "bin": {
+    "create-beat": "./index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "beat",
+    "create-beat",
+    "scaffold",
+    "vite",
+    "ochairo"
+  ],
+  "author": "ochairo",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ochairo/beat"
+  },
+  "homepage": "https://github.com/ochairo/beat/tree/main/create-beat#readme",
+  "bugs": {
+    "url": "https://github.com/ochairo/beat/issues"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}

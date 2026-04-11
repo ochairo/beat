@@ -9,9 +9,16 @@
     "@playwright/test": "^1.58.2"
   },
   "scripts": {
+    "benchmark:build": "pnpm --dir ../beat build && pnpm --dir ../react build && pnpm --dir ../solid build",
+    "benchmark:run": "pnpm benchmark:build && pnpm report",
+    "benchmark:serve": "pnpm benchmark:build && pnpm serve",
     "dev": "node ./src/dev-server.mjs",
     "serve": "node ./src/serve-static.mjs",
     "report": "node ./report.mjs",
     "test:performance": "playwright test -c ./playwright.config.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25.0.0",
+    "pnpm": ">=10.0.0"
   }
 }
