@@ -1,6 +1,6 @@
 {
   "name": "@ochairo/beat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Pulse-native SPA runtime for DOM-first applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -51,6 +51,17 @@
   ],
   "author": "ochairo",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ochairo/beat"
+  },
+  "homepage": "https://github.com/ochairo/beat#readme",
+  "bugs": {
+    "url": "https://github.com/ochairo/beat/issues"
+  },
   "dependencies": {
     "@ochairo/pulse": "^1.0.7"
   },

@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createInterface } from "node:readline/promises";
 
-const BEAT_VERSION = "^1.0.0";
+const BEAT_VERSION = "^1.0.1";
 const PULSE_VERSION = "^1.0.7";
 const VITE_VERSION = "^7.1.9";
 const TYPESCRIPT_VERSION = "^5.3.3";
 const DEFAULT_TEMPLATE = "starter";
 const TEMPLATE_NAMES = [DEFAULT_TEMPLATE, "router"];
+const BEAT_PACKAGE_NAME = "@ochairo/beat";
+const PULSE_PACKAGE_NAME = "@ochairo/pulse";
 const CREATE_BEAT_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const BEAT_PACKAGE_DIRECTORY = resolve(CREATE_BEAT_DIRECTORY, "..");
 const MONOREPO_ROOT_DIRECTORY = resolve(CREATE_BEAT_DIRECTORY, "../..");
@@ -347,10 +349,12 @@ function createPackageJson(packageName, targetDirectory) {
 }
 
 function resolveDependencyVersions(targetDirectory) {
-  if (shouldUseLocalWorkspaceDependencies(targetDirectory)) {
+  const localWorkspacePackages = findLocalWorkspacePackages(targetDirectory);
+
+  if (localWorkspacePackages) {
     return {
-      "@ochairo/beat": `file:${toPortableRelativePath(targetDirectory, BEAT_PACKAGE_DIRECTORY)}`,
-      "@ochairo/pulse": `file:${toPortableRelativePath(targetDirectory, PULSE_PACKAGE_DIRECTORY)}`,
+      "@ochairo/beat": `file:${toPortableRelativePath(targetDirectory, localWorkspacePackages.beatDirectory)}`,
+      "@ochairo/pulse": `file:${toPortableRelativePath(targetDirectory, localWorkspacePackages.pulseDirectory)}`,
     };
   }
 
@@ -360,17 +364,81 @@ function resolveDependencyVersions(targetDirectory) {
   };
 }
 
-function shouldUseLocalWorkspaceDependencies(targetDirectory) {
+function findLocalWorkspacePackages(targetDirectory) {
+  const packageDirectories = [
+    findInstalledWorkspacePackages(targetDirectory),
+    findPackagesFromTargetAncestors(targetDirectory),
+  ];
+
+  for (const packageDirectorySet of packageDirectories) {
+    if (packageDirectorySet) {
+      return packageDirectorySet;
+    }
+  }
+
+  return null;
+}
+
+function findInstalledWorkspacePackages(targetDirectory) {
   if (
-    !existsSync(BEAT_PACKAGE_DIRECTORY) ||
-    !existsSync(PULSE_PACKAGE_DIRECTORY)
+    !isExpectedPackageDirectory(BEAT_PACKAGE_DIRECTORY, BEAT_PACKAGE_NAME) ||
+    !isExpectedPackageDirectory(PULSE_PACKAGE_DIRECTORY, PULSE_PACKAGE_NAME)
   ) {
-    return false;
+    return null;
   }
 
   const relativeToRoot = relative(MONOREPO_ROOT_DIRECTORY, targetDirectory);
 
-  return relativeToRoot !== "" && !relativeToRoot.startsWith("..");
+  if (relativeToRoot === "" || relativeToRoot.startsWith("..")) {
+    return null;
+  }
+
+  return {
+    beatDirectory: BEAT_PACKAGE_DIRECTORY,
+    pulseDirectory: PULSE_PACKAGE_DIRECTORY,
+  };
+}
+
+function findPackagesFromTargetAncestors(targetDirectory) {
+  let currentDirectory = resolve(targetDirectory, "..");
+
+  while (true) {
+    const beatDirectory = resolve(currentDirectory, "beat");
+    const pulseDirectory = resolve(currentDirectory, "pulse");
+
+    if (
+      isExpectedPackageDirectory(beatDirectory, BEAT_PACKAGE_NAME) &&
+      isExpectedPackageDirectory(pulseDirectory, PULSE_PACKAGE_NAME)
+    ) {
+      return {
+        beatDirectory,
+        pulseDirectory,
+      };
+    }
+
+    const parentDirectory = resolve(currentDirectory, "..");
+
+    if (parentDirectory === currentDirectory) {
+      return null;
+    }
+
+    currentDirectory = parentDirectory;
+  }
+}
+
+function isExpectedPackageDirectory(directoryPath, expectedPackageName) {
+  const packageJsonPath = resolve(directoryPath, "package.json");
+
+  if (!existsSync(packageJsonPath)) {
+    return false;
+  }
+
+  try {
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+    return packageJson.name === expectedPackageName;
+  } catch {
+    return false;
+  }
 }
 
 function toPortableRelativePath(fromDirectory, toDirectory) {

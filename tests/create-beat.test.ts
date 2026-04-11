@@ -1,5 +1,13 @@
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -70,7 +78,7 @@ describe("create-beat", () => {
     );
     const srcEntries = await readdir(join(targetDirectory, "src"));
 
-    expect(packageJson).toContain('"@ochairo/beat": "^1.0.0"');
+    expect(packageJson).toContain('"@ochairo/beat": "^1.0.1"');
     expect(packageJson).toContain('"@ochairo/pulse": "^1.0.7"');
     expect(packageJson).toContain('"preview": "vite preview"');
     expect(readme).toContain("Starter app scaffolded with `create-beat`.");
@@ -216,7 +224,76 @@ describe("create-beat", () => {
       return;
     }
 
-    expect(packageJson).toContain('"@ochairo/beat": "^1.0.0"');
+    expect(packageJson).toContain('"@ochairo/beat": "^1.0.1"');
     expect(packageJson).toContain('"@ochairo/pulse": "^1.0.7"');
+  });
+
+  it("finds local workspace packages from target ancestors when running from a published install", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "create-beat-published-"));
+    createdDirectories.push(tempRoot);
+
+    const workspaceRoot = join(tempRoot, "workspace");
+    const appsDirectory = join(workspaceRoot, "apps");
+    const targetDirectory = join(appsDirectory, "published-board");
+    const beatDirectory = join(workspaceRoot, "beat");
+    const pulseDirectory = join(workspaceRoot, "pulse");
+    const installedCreateBeatDirectory = join(tempRoot, "store", "create-beat");
+    const copiedModulePath = join(installedCreateBeatDirectory, "index.mjs");
+    const sourceModulePath = resolve(process.cwd(), "create-beat/index.mjs");
+    const sourceModule = await readFile(sourceModulePath, "utf8");
+
+    await mkdir(appsDirectory, { recursive: true });
+    await mkdir(beatDirectory, { recursive: true });
+    await mkdir(pulseDirectory, { recursive: true });
+    await mkdir(installedCreateBeatDirectory, { recursive: true });
+
+    await writeFile(
+      join(beatDirectory, "package.json"),
+      JSON.stringify({ name: "@ochairo/beat", version: "1.0.1" }, null, 2),
+    );
+    await writeFile(
+      join(pulseDirectory, "package.json"),
+      JSON.stringify({ name: "@ochairo/pulse", version: "1.0.7" }, null, 2),
+    );
+    await writeFile(copiedModulePath, sourceModule);
+
+    execFileSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        [
+          "const [modulePath, nextTargetDirectory] = process.argv.slice(-2);",
+          'const { pathToFileURL } = await import("node:url");',
+          "const { scaffoldBeatApp } = await import(pathToFileURL(modulePath).href);",
+          "await scaffoldBeatApp({",
+          "  force: false,",
+          '  packageName: "published-board",',
+          "  targetDirectory: nextTargetDirectory,",
+          "});",
+        ].join("\n"),
+        copiedModulePath,
+        targetDirectory,
+      ],
+      { stdio: "inherit" },
+    );
+
+    const packageJson = await readFile(
+      join(targetDirectory, "package.json"),
+      "utf8",
+    );
+    const expectedBeatPath = relative(targetDirectory, beatDirectory)
+      .split("\\")
+      .join("/");
+    const expectedPulsePath = relative(targetDirectory, pulseDirectory)
+      .split("\\")
+      .join("/");
+
+    expect(packageJson).toContain(
+      `"@ochairo/beat": "file:${expectedBeatPath}"`,
+    );
+    expect(packageJson).toContain(
+      `"@ochairo/pulse": "file:${expectedPulsePath}"`,
+    );
   });
 });
