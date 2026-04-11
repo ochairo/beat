@@ -21,9 +21,7 @@ pnpm create @ochairo/create-beat my-app --template router
 
 That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin with routing support.
 
-## Quick Start
-
-Default starter app:
+## Example
 
 ```tsx
 import { bindText, component } from "@ochairo/beat";
