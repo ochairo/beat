@@ -57,7 +57,7 @@ export const App = component(() => {
 
 - [Getting Started](./docs/GETTING_STARTED.md)
 - [Existing App Setup](./docs/EXISTING_APP.md)
-- [API](./docs/API.md)
+- [API documentation](./docs/API.md)
 - [Compiler Contract](./docs/COMPILER.md)
 - [Support Policy](./docs/SUPPORT.md)
 
