@@ -6,15 +6,10 @@
   <img src="./docs/images/beat-brand-dot.gif" alt="Beat brand dot" width="30" height="30" style="vertical-align: -5px;"> beat
 </h1>
 
-[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse) native JSX for direct-DOM SPA applications.<br>
+[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse) native JSX framework for direct-DOM SPA applications.<br>
 _Fine-grained rendering, explicit routing, explicit async state._
 
 </div>
-
-## Concept
-
-`beat` is a [Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse) native framework for client-rendered web apps.<br>
-It keeps state explicit with [Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse), renders directly to the DOM, and provides explicit JSX, routing, and async primitives.
 
 ## Scaffold
 
