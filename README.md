@@ -6,8 +6,8 @@
   <img src="./docs/images/beat-brand-dot.gif" alt="Beat brand dot" width="30" height="30" style="vertical-align: -5px;"> beat
 </h1>
 
-[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse) native JSX framework for direct-DOM SPA applications.<br>
-_Fine-grained rendering, explicit routing, explicit async state._
+[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse)-native JSX framework for direct-DOM client-rendered SPA applications.<br>
+_Fine-grained rendering with explicit routing and async primitives._
 
 </div>
 
