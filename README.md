@@ -6,88 +6,70 @@
   <img src="./docs/images/beat-brand-dot.gif" alt="Beat brand dot" width="30" height="30" style="vertical-align: -5px;"> beat
 </h1>
 
-Pulse-native JSX for direct-DOM SPA applications.<br>
+[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse) native JSX for direct-DOM SPA applications.<br>
 _Fine-grained rendering, explicit routing, explicit async state._
 
 </div>
 
 ## Concept
 
-`beat` is a Pulse-native UI framework for client-rendered web applications.
-It keeps state explicit through `@ochairo/pulse`, renders directly to the DOM, and adds framework primitives for JSX, routing, and async resources without switching to a component rerender-by-default model.
-
-Current framework primitives include:
-
-- JSX runtime with `Show`, `For`, `component`, and `onCleanup`
-- direct-DOM rendering through `createRoot()` and `render()`
-- SPA routing with guards, loaders, named outlets, reload, and prefetch
-- explicit async resources with debounce, stale-while-refresh, and shared caches
-
-## Install
-
-```sh
-pnpm add @ochairo/beat @ochairo/pulse
-```
+`beat` is a Pulse-native framework for client-rendered web apps.
+It keeps state explicit with [Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse), renders directly to the DOM, and provides explicit JSX, routing, and async primitives.
 
 ## Scaffold
 
+Start a new app with the scaffolder:
+
 ```sh
-pnpm create @ochairo/beat my-app
+pnpm create @ochairo/create-beat my-app
 ```
 
 That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin.
 
+For the router starter:
+
+```sh
+pnpm create @ochairo/create-beat my-app --template router
+```
+
 ## Quick Start
 
+Default starter app:
+
 ```tsx
+import { bindText, component } from "@ochairo/beat";
 import { pulse } from "@ochairo/pulse";
-import { For, createRoot } from "@ochairo/beat";
 
-const count = pulse(0);
-const items = pulse(["tea", "coffee"]);
+const counter = pulse(0);
 
-const app = (
-  <main>
-    <h1>Beat</h1>
-    <button onClick={() => count.set(count.get() + 1)}>
-      count: {count}
-    </button>
-    <ul>
-      <For each={items}>
-        {(item) => <li>{item}</li>}
-      </For>
-    </ul>
-  </main>
-);
+const onclick = (value) => {
+  counter.set(counter.get() + value);
+};
 
-createRoot(document.getElementById("app")!).render(app);
-```
-
-## Vite Setup
-
-```ts
-import { defineConfig } from "vite";
-import { createBeatVitePlugin } from "@ochairo/beat/vite-plugin";
-
-export default defineConfig({
-  plugins: [createBeatVitePlugin()],
+export const App = component(() => {
+  return (
+    <main>
+      <header class="header">
+        <h1 class="title">Counter app</h1>
+      </header>
+      <section class="counter">
+        <button class="button" onClick={() => onclick(-1)}>
+          -
+        </button>
+        <strong class="result">{bindText(counter)}</strong>
+        <button class="button" onClick={() => onclick(1)}>
+          +
+        </button>
+      </section>
+    </main>
+  );
 });
-```
-
-TypeScript:
-
-```json
-{
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "@ochairo/beat"
-  }
-}
 ```
 
 ## Documentation
 
 - [Getting Started](./docs/GETTING_STARTED.md)
+- [Existing App Setup](./docs/EXISTING_APP.md)
 - [Motivation](./docs/MOTIVATION.md)
 - [API](./docs/API.md)
 - [Compiler Contract](./docs/COMPILER.md)

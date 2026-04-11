@@ -10,19 +10,21 @@ This guide walks through a small Beat application using:
 
 This guide reflects the recommended Beat `1.0.x` usage model.
 
-## 1. Scaffold Or Install
+## 1. Scaffold A New App
 
 Fastest path:
 
 ```sh
-pnpm create @ochairo/beat my-app
+pnpm create @ochairo/create-beat my-app
 ```
 
-If you want to wire Beat into an existing app manually:
+For the router starter:
 
 ```sh
-pnpm add @ochairo/beat @ochairo/pulse
+pnpm create @ochairo/create-beat my-app --template router
 ```
+
+If you want to wire Beat into an existing app manually, use [Existing App Setup](./EXISTING_APP.md).
 
 ## 2. Configure TypeScript
 
