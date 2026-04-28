@@ -1,12 +1,12 @@
 import { pulse } from "@ochairo/pulse";
 import { describe, expect, it } from "vitest";
+import { jsx } from "../src/jsx-runtime.js";
 import {
   component,
   createRoot,
   onCleanup,
   render,
   Show,
-  jsx,
 } from "../src/index.js";
 
 describe("render root", () => {

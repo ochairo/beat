@@ -1365,22 +1365,18 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
   return router;
 }
 
-export function outlet(router: BeatRouter, name?: string): BeatJsxChild {
-  if (name !== undefined) {
-    return renderNamedOutlet(router, -1, name);
+export function Outlet(props: OutletProps): BeatJsxChild {
+  if (props.name !== undefined) {
+    return renderNamedOutlet(props.router, -1, props.name);
   }
 
   return renderBranchOutlet(
-    router,
+    props.router,
     {
       kind: "main",
     },
     0,
   );
-}
-
-export function Outlet(props: OutletProps): BeatJsxChild {
-  return outlet(props.router, props.name);
 }
 
 export function Link(props: LinkProps): BeatJsxChild {

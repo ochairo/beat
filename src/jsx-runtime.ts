@@ -12,6 +12,87 @@ import {
 
 export const Fragment = Symbol.for("@ochairo/beat/Fragment");
 
+// ── SVG namespace support ──────────────────────────────────────────────────────
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/**
+ * The complete set of SVG element tag names that must be created in the SVG
+ * namespace.  Anything not in this set is treated as an HTML element.
+ */
+const SVG_TAGS = new Set([
+  "animate",
+  "animateMotion",
+  "animateTransform",
+  "circle",
+  "clipPath",
+  "defs",
+  "desc",
+  "ellipse",
+  "feBlend",
+  "feColorMatrix",
+  "feComponentTransfer",
+  "feComposite",
+  "feConvolveMatrix",
+  "feDiffuseLighting",
+  "feDisplacementMap",
+  "feDistantLight",
+  "feDropShadow",
+  "feFlood",
+  "feFuncA",
+  "feFuncB",
+  "feFuncG",
+  "feFuncR",
+  "feGaussianBlur",
+  "feImage",
+  "feMerge",
+  "feMergeNode",
+  "feMorphology",
+  "feOffset",
+  "fePointLight",
+  "feSpecularLighting",
+  "feSpotLight",
+  "feTile",
+  "feTurbulence",
+  "filter",
+  "foreignObject",
+  "g",
+  "image",
+  "line",
+  "linearGradient",
+  "marker",
+  "mask",
+  "metadata",
+  "mpath",
+  "path",
+  "pattern",
+  "polygon",
+  "polyline",
+  "radialGradient",
+  "rect",
+  "set",
+  "stop",
+  "svg",
+  "switch",
+  "symbol",
+  "text",
+  "textPath",
+  "title",
+  "tspan",
+  "use",
+  "view",
+]);
+
+function createDomElement(tag: string): Element {
+  return SVG_TAGS.has(tag)
+    ? document.createElementNS(SVG_NS, tag)
+    : document.createElement(tag);
+}
+
+function isStylable(element: Element): element is HTMLElement | SVGElement {
+  return element instanceof HTMLElement || element instanceof SVGElement;
+}
+
 export type BeatJsxChild =
   | BeatRendered<Node>
   | Node
@@ -132,6 +213,7 @@ function createPropertyOrAttributeApplier(
 ): (value: unknown) => void {
   const dynamicElement = element as unknown as Record<string, unknown>;
   const writeAsProperty =
+    !(element instanceof SVGElement) &&
     propertyName in element &&
     !propertyName.startsWith("data-") &&
     !propertyName.startsWith("aria-");
@@ -161,11 +243,7 @@ function createPropertyOrAttributeApplier(
         return;
       }
 
-      if (
-        typeof value === "object" &&
-        value !== null &&
-        element instanceof HTMLElement
-      ) {
+      if (typeof value === "object" && value !== null && isStylable(element)) {
         for (const [styleName, styleValue] of Object.entries(value)) {
           element.style.setProperty(styleName, String(styleValue));
         }
@@ -231,7 +309,7 @@ function applyBindingStyleValue(
   propertyName: string,
   value: unknown,
 ): void {
-  if (!(element instanceof HTMLElement)) {
+  if (!isStylable(element)) {
     return;
   }
 
@@ -274,7 +352,7 @@ function applyInternalBindings(
       }
 
       if (propertyName === "__beatStyleBindings") {
-        if (isPulse(bindingValue) && element instanceof HTMLElement) {
+        if (isPulse(bindingValue) && isStylable(element)) {
           cleanups.push(bindStyle(element, bindingName, bindingValue));
         } else {
           applyBindingStyleValue(element, bindingName, bindingValue);
@@ -587,7 +665,7 @@ export function jsx<TProps>(
     return type(resolvedProps);
   }
 
-  const element = document.createElement(type);
+  const element = createDomElement(type);
   const cleanups: BeatCleanup[] = [];
 
   for (const [propertyName, value] of Object.entries(resolvedProps)) {

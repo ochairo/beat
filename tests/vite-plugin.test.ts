@@ -49,6 +49,24 @@ describe("vite plugin transform", () => {
     expect(output).not.toContain("prop:title");
   });
 
+  it("quotes hyphenated style property names in __beatStyleBindings", () => {
+    const input = `
+      const view = () => (
+        <span
+          style:background-color={bgColor}
+          style:stop-color={stopColor}
+        />
+      );
+    `;
+
+    const output = transformBeatControlFlow(input, "/virtual/app.tsx");
+
+    expect(output).toContain('"background-color": bgColor');
+    expect(output).toContain('"stop-color": stopColor');
+    expect(output).not.toContain("background-color: bgColor");
+    expect(output).not.toContain("stop-color: stopColor");
+  });
+
   it("lowers single intrinsic child expressions into direct text bindings", () => {
     const input = `
       const view = () => <button>{label}</button>;

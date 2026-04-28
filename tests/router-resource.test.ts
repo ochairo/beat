@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { bindText } from "../src/dom.js";
 import {
   Link,
   Outlet,
-  bindText,
-  createDebouncedResource,
   createResource,
   createResourceCache,
   createRoot,
   createRouter,
-  createStaleWhileRefreshResource,
 } from "../src/index.js";
 import { pulse } from "@ochairo/pulse";
 
@@ -48,7 +46,7 @@ describe("router and resource", () => {
           path: "/users/:id",
           view(match) {
             const node = document.createElement("span");
-            node.textContent = `user:${match.params.id ?? "missing"}`;
+            node.textContent = `user:${match.params["id"] ?? "missing"}`;
             return node;
           },
         },
@@ -61,8 +59,8 @@ describe("router and resource", () => {
     const root = createRoot(target);
     root.render(Outlet({ router }));
 
-    expect(router.current.get().params.id).toBe("42");
-    expect(router.current.get().query.tab).toBe("profile");
+    expect(router.current.get().params["id"]).toBe("42");
+    expect(router.current.get().query["tab"]).toBe("profile");
     expect(target.textContent).toBe("user:42");
 
     router.navigate("/users/7");
@@ -366,7 +364,7 @@ describe("router and resource", () => {
           path: "/dashboard",
           view(match) {
             const layout = document.createElement("section");
-            layout.dataset.role = "layout";
+            layout.dataset["role"] = "layout";
             layout.append(document.createTextNode("layout:"));
 
             const child = match.outlet();
@@ -695,7 +693,7 @@ describe("router and resource", () => {
         {
           path: "/reports/:id",
           async load(match) {
-            return `loaded:${match.params.id ?? "missing"}`;
+            return `loaded:${match.params["id"] ?? "missing"}`;
           },
           view(match) {
             const node = document.createElement("span");
@@ -734,7 +732,7 @@ describe("router and resource", () => {
           path: "/reports/:id",
           async load(match) {
             loads += 1;
-            return `loaded:${match.params.id ?? "missing"}:${loads}`;
+            return `loaded:${match.params["id"] ?? "missing"}:${loads}`;
           },
           view(match) {
             return document.createTextNode(String(match.data ?? "pending"));
@@ -780,7 +778,7 @@ describe("router and resource", () => {
           path: "/reports/:id",
           async load(match) {
             loads += 1;
-            return `loaded:${match.params.id ?? "missing"}:${loads}`;
+            return `loaded:${match.params["id"] ?? "missing"}:${loads}`;
           },
           view(match) {
             return document.createTextNode(String(match.data ?? "pending"));
@@ -819,10 +817,10 @@ describe("router and resource", () => {
           path: "/reports/:id",
           async load(match) {
             if (shouldFail) {
-              throw new Error(`failed:${match.params.id ?? "missing"}`);
+              throw new Error(`failed:${match.params["id"] ?? "missing"}`);
             }
 
-            return `loaded:${match.params.id ?? "missing"}`;
+            return `loaded:${match.params["id"] ?? "missing"}`;
           },
           errorView(error) {
             return document.createTextNode((error as Error).message);
@@ -902,7 +900,7 @@ describe("router and resource", () => {
               path: "reports/:id",
               view(match) {
                 return document.createTextNode(
-                  `report:${match.params.id ?? "missing"}`,
+                  `report:${match.params["id"] ?? "missing"}`,
                 );
               },
             },
@@ -911,7 +909,7 @@ describe("router and resource", () => {
               outlet: "sidebar",
               async load(match) {
                 loads += 1;
-                return `filters:${match.params.id ?? "missing"}:${loads}`;
+                return `filters:${match.params["id"] ?? "missing"}:${loads}`;
               },
               view(match) {
                 return document.createTextNode(String(match.data ?? "pending"));
@@ -986,7 +984,7 @@ describe("router and resource", () => {
               path: "reports/:id",
               view(match) {
                 return document.createTextNode(
-                  `report:${match.params.id ?? "missing"}`,
+                  `report:${match.params["id"] ?? "missing"}`,
                 );
               },
             },
@@ -995,7 +993,7 @@ describe("router and resource", () => {
               outlet: "sidebar",
               async load(match) {
                 loads += 1;
-                return `filters:${match.params.id ?? "missing"}:${loads}`;
+                return `filters:${match.params["id"] ?? "missing"}:${loads}`;
               },
               view(match) {
                 return document.createTextNode(String(match.data ?? "pending"));
@@ -1033,7 +1031,7 @@ describe("router and resource", () => {
           path: "/reports/:id",
           async load(match) {
             loads += 1;
-            return `loaded:${match.params.id ?? "missing"}:${loads}`;
+            return `loaded:${match.params["id"] ?? "missing"}:${loads}`;
           },
           view(match) {
             return document.createTextNode(String(match.data ?? "pending"));
@@ -1069,7 +1067,7 @@ describe("router and resource", () => {
           path: "/reports/:id",
           async load(match) {
             loads += 1;
-            return `loaded:${match.params.id ?? "missing"}:${loads}`;
+            return `loaded:${match.params["id"] ?? "missing"}:${loads}`;
           },
           view(match) {
             return document.createTextNode(String(match.data ?? "pending"));
@@ -1103,7 +1101,7 @@ describe("router and resource", () => {
         {
           path: "/reports/:id",
           load(match, signal) {
-            const id = match.params.id ?? "missing";
+            const id = match.params["id"] ?? "missing";
             loads += 1;
             signal.addEventListener("abort", () => {
               aborted.push(id);
@@ -1157,7 +1155,7 @@ describe("router and resource", () => {
         {
           path: "/reports/:id",
           load(match, signal) {
-            const id = match.params.id ?? "missing";
+            const id = match.params["id"] ?? "missing";
             loads += 1;
             signal.addEventListener("abort", () => {
               aborted.push(id);
@@ -1217,11 +1215,11 @@ describe("router and resource", () => {
 
             if (shouldFail) {
               throw new Error(
-                `prefetch failed:${match.params.id ?? "missing"}`,
+                `prefetch failed:${match.params["id"] ?? "missing"}`,
               );
             }
 
-            return `loaded:${match.params.id ?? "missing"}:${loads}`;
+            return `loaded:${match.params["id"] ?? "missing"}:${loads}`;
           },
           view(match) {
             return document.createTextNode(String(match.data ?? "pending"));
@@ -1257,7 +1255,7 @@ describe("router and resource", () => {
         {
           path: "/reports/:id",
           load(match, signal) {
-            const id = match.params.id ?? "missing";
+            const id = match.params["id"] ?? "missing";
             signal.addEventListener("abort", () => {
               aborted.push(id);
             });
@@ -1349,7 +1347,7 @@ describe("router and resource", () => {
               path: "reports/:id",
               view(match) {
                 return document.createTextNode(
-                  `report:${match.params.id ?? "missing"}`,
+                  `report:${match.params["id"] ?? "missing"}`,
                 );
               },
             },
@@ -1357,7 +1355,7 @@ describe("router and resource", () => {
               path: "reports/:id",
               outlet: "sidebar",
               load(match, signal) {
-                const id = match.params.id ?? "missing";
+                const id = match.params["id"] ?? "missing";
                 signal.addEventListener("abort", () => {
                   aborted.push(id);
                 });
@@ -1414,7 +1412,7 @@ describe("router and resource", () => {
         {
           path: "/reports/:id",
           load(match, signal) {
-            const id = match.params.id ?? "missing";
+            const id = match.params["id"] ?? "missing";
             signal.addEventListener("abort", () => {
               aborted.push(id);
             });
@@ -1567,7 +1565,7 @@ describe("router and resource", () => {
   it("debounced resources coalesce rapid source changes", async () => {
     const source = pulse("a");
     const seen: string[] = [];
-    const resource = createDebouncedResource({
+    const resource = createResource({
       source,
       debounceMs: 5,
       immediate: false,
@@ -1591,7 +1589,7 @@ describe("router and resource", () => {
   it("debounced resource reload promises settle after rescheduling", async () => {
     const source = pulse("a");
     const seen: string[] = [];
-    const resource = createDebouncedResource({
+    const resource = createResource({
       source,
       debounceMs: 5,
       immediate: false,
@@ -1615,7 +1613,7 @@ describe("router and resource", () => {
 
   it("debounced resource reload promises settle on dispose", async () => {
     const source = pulse("a");
-    const resource = createDebouncedResource({
+    const resource = createResource({
       source,
       debounceMs: 50,
       immediate: false,
@@ -1637,7 +1635,8 @@ describe("router and resource", () => {
   it("stale-while-refresh resources preserve previous data while pending", async () => {
     const source = pulse(1);
     let releaseLoad: (() => void) | undefined;
-    const resource = createStaleWhileRefreshResource({
+    const resource = createResource({
+      keepStaleWhileRefreshing: true,
       source,
       immediate: false,
       load: async (value) => {
@@ -1834,5 +1833,31 @@ describe("router and resource", () => {
     expect(users.size()).toBe(0);
     expect(posts.size()).toBe(0);
     expect(cache.size()).toBe(0);
+  });
+
+  it("namespaced cache eviction respects namespace boundaries", () => {
+    const root = createResourceCache<string>({ maxEntries: 2 });
+    const nsA = root.namespace("a");
+    const nsB = root.namespace("b");
+
+    nsA.set("1", "a1");
+    nsA.set("2", "a2");
+    // nsA is at capacity (2); adding to nsB must not evict nsA entries
+    nsB.set("1", "b1");
+    nsB.set("2", "b2");
+
+    expect(nsA.get("1")).toBe("a1");
+    expect(nsA.get("2")).toBe("a2");
+    expect(nsB.get("1")).toBe("b1");
+    expect(nsB.get("2")).toBe("b2");
+
+    // Now nsA exceeds its own maxEntries; oldest nsA entry should be evicted
+    nsA.set("3", "a3");
+    expect(nsA.get("1")).toBeUndefined();
+    expect(nsA.get("2")).toBe("a2");
+    expect(nsA.get("3")).toBe("a3");
+    // nsB must be untouched
+    expect(nsB.get("1")).toBe("b1");
+    expect(nsB.get("2")).toBe("b2");
   });
 });

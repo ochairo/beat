@@ -1,17 +1,8 @@
 import { pulse, type Pulse } from "@ochairo/pulse";
 import { describe, expect, it } from "vitest";
-import {
-  For,
-  Show,
-  bindExactMasked,
-  bindFields,
-  bindMasked,
-  bindProperty,
-  bindText,
-  createObjectKeyMask,
-  jsx,
-  mountEach,
-} from "../src/index.js";
+import { bindProperty, bindStyle, bindText } from "../src/dom.js";
+import { jsx } from "../src/jsx-runtime.js";
+import { For, Show } from "../src/index.js";
 
 describe("dom bindings", () => {
   it("bindText updates the same text node when the pulse changes", () => {
@@ -25,40 +16,6 @@ describe("dom bindings", () => {
     expect(binding.node.data).toBe("2");
 
     binding.cleanup?.();
-  });
-
-  it("mountEach rerenders structural array changes", () => {
-    const rows = pulse(["Ada"]);
-    const container = document.createElement("div");
-
-    const cleanup = mountEach(container, rows, (row) => {
-      const element = document.createElement("span");
-      element.textContent = row.get();
-      return element;
-    });
-
-    expect(container.textContent).toBe("Ada");
-
-    rows[1]?.set("Grace");
-
-    expect(container.textContent).toBe("AdaGrace");
-
-    cleanup();
-  });
-
-  it("mountEach allows defined array items whose value is undefined", () => {
-    const rows = pulse([undefined, "Ada"] as Array<string | undefined>);
-    const container = document.createElement("div");
-
-    const cleanup = mountEach(container, rows, (row) => {
-      const element = document.createElement("span");
-      element.textContent = row.get() ?? "empty";
-      return element;
-    });
-
-    expect(container.textContent).toBe("emptyAda");
-
-    cleanup();
   });
 
   it("For propagates child pulse updates without structural array changes", () => {
@@ -146,227 +103,6 @@ describe("dom bindings", () => {
     expect(host.textContent).toBe("LinGrace");
 
     rendered.cleanup?.();
-  });
-
-  it("bindFields only applies changed object fields", () => {
-    const state = pulse({ count: 1, label: "Ada" });
-    const seen: string[] = [];
-
-    const cleanup = bindFields(state, {
-      count(value) {
-        seen.push(`count:${value.toString()}`);
-      },
-      label(value) {
-        seen.push(`label:${value}`);
-      },
-    });
-
-    expect(seen).toEqual(["count:1", "label:Ada"]);
-
-    state.count.set(2);
-
-    expect(seen).toEqual(["count:1", "label:Ada", "count:2"]);
-
-    state.label.set("Grace");
-
-    expect(seen).toEqual(["count:1", "label:Ada", "count:2", "label:Grace"]);
-
-    cleanup();
-  });
-
-  it("bindFields works on child object pulses with absolute mutation paths", () => {
-    const state = pulse({ user: { name: "Ada", role: "admin" } });
-    const seen: string[] = [];
-
-    const cleanup = bindFields(state.user, {
-      name(value) {
-        seen.push(`name:${value}`);
-      },
-      role(value) {
-        seen.push(`role:${value}`);
-      },
-    });
-
-    expect(seen).toEqual(["name:Ada", "role:admin"]);
-
-    state.user.set({ name: "Ada", role: "editor" });
-
-    expect(seen).toEqual(["name:Ada", "role:admin", "role:editor"]);
-
-    cleanup();
-  });
-
-  it("bindFields applies a batched repeated field change once", () => {
-    const state = pulse({ count: 0, label: "Ada" });
-    const seen: string[] = [];
-
-    const cleanup = bindFields(state, {
-      count(value) {
-        seen.push(`count:${value.toString()}`);
-      },
-      label(value) {
-        seen.push(`label:${value}`);
-      },
-    });
-
-    state.batch(() => {
-      state.count.set(1);
-      state.count.set(2);
-    });
-
-    expect(seen).toEqual(["count:0", "label:Ada", "count:2"]);
-
-    cleanup();
-  });
-
-  it("bindMasked applies only the masked changed fields", () => {
-    const COUNT_MASK = 1 << 0;
-    const LABEL_MASK = 1 << 1;
-    const state = pulse({ count: 0, label: "Ada" });
-    const seen: string[] = [];
-
-    const cleanup = bindMasked(state, {
-      fullMask: COUNT_MASK | LABEL_MASK,
-      getChangeMask(changes) {
-        let mask = 0;
-
-        for (const change of changes) {
-          if (change.key === "count") {
-            mask |= COUNT_MASK;
-            continue;
-          }
-
-          if (change.key === "label") {
-            mask |= LABEL_MASK;
-          }
-        }
-
-        return mask;
-      },
-      apply(value, mask) {
-        if (mask & COUNT_MASK) {
-          seen.push(`count:${value.count.toString()}`);
-        }
-
-        if (mask & LABEL_MASK) {
-          seen.push(`label:${value.label}`);
-        }
-      },
-    });
-
-    expect(seen).toEqual(["count:0", "label:Ada"]);
-
-    state.batch(() => {
-      state.count.set(1);
-      state.count.set(2);
-      state.label.set("Grace");
-    });
-
-    expect(seen).toEqual(["count:0", "label:Ada", "count:2", "label:Grace"]);
-
-    cleanup();
-  });
-
-  it("bindExactMasked applies exact object replacements through one listener", () => {
-    const COUNT_MASK = 1 << 0;
-    const LABEL_MASK = 1 << 1;
-    const state = pulse({ item: { count: 0, label: "Ada" } });
-    const seen: string[] = [];
-
-    const cleanup = bindExactMasked(state.item, {
-      fullMask: COUNT_MASK | LABEL_MASK,
-      getChangeMask: createObjectKeyMask<{ count: number; label: string }>(
-        {
-          count: COUNT_MASK,
-          label: LABEL_MASK,
-        },
-        COUNT_MASK | LABEL_MASK,
-      ),
-      apply(value, mask) {
-        if ((mask & COUNT_MASK) !== 0) {
-          seen.push(`count:${value.count.toString()}`);
-        }
-
-        if ((mask & LABEL_MASK) !== 0) {
-          seen.push(`label:${value.label}`);
-        }
-      },
-    });
-
-    expect(seen).toEqual(["count:0", "label:Ada"]);
-
-    state.item.set({ count: 2, label: "Grace" });
-
-    expect(seen).toEqual(["count:0", "label:Ada", "count:2", "label:Grace"]);
-
-    cleanup();
-  });
-
-  it("bindExactMasked stays exact-path and ignores descendant-only leaf writes", () => {
-    const COUNT_MASK = 1 << 0;
-    const LABEL_MASK = 1 << 1;
-    const state = pulse({ item: { count: 0, label: "Ada" } });
-    const seen: string[] = [];
-
-    const cleanup = bindExactMasked(state.item, {
-      fullMask: COUNT_MASK | LABEL_MASK,
-      getChangeMask: createObjectKeyMask<{ count: number; label: string }>(
-        {
-          count: COUNT_MASK,
-          label: LABEL_MASK,
-        },
-        COUNT_MASK | LABEL_MASK,
-      ),
-      apply(value, mask) {
-        if ((mask & COUNT_MASK) !== 0) {
-          seen.push(`count:${value.count.toString()}`);
-        }
-
-        if ((mask & LABEL_MASK) !== 0) {
-          seen.push(`label:${value.label}`);
-        }
-      },
-    });
-
-    state.item.count.set(1);
-
-    expect(seen).toEqual(["count:0", "label:Ada"]);
-
-    cleanup();
-  });
-
-  it("createObjectKeyMask resolves known keys and falls back for unknown ones", () => {
-    const mask = createObjectKeyMask<{ count: number; label: string }>(
-      {
-        count: 1 << 0,
-        label: 1 << 1,
-      },
-      (1 << 0) | (1 << 1),
-    );
-
-    expect(
-      mask([
-        {
-          kind: "replace",
-          path: ["count"],
-          key: "count",
-          value: 1,
-          previousValue: 0,
-        },
-      ]),
-    ).toBe(1 << 0);
-
-    expect(
-      mask([
-        {
-          kind: "replace",
-          path: ["other"],
-          key: "other",
-          value: 1,
-          previousValue: 0,
-        },
-      ]),
-    ).toBe((1 << 0) | (1 << 1));
   });
 
   it("jsx binds pulse children and event listeners", () => {
@@ -548,15 +284,14 @@ describe("dom bindings", () => {
       children(item) {
         renderCount += 1;
         const element = document.createElement("span");
-        element.dataset.key = item.id.get();
+        element.dataset["key"] = item.id.get();
 
         const binding = bindText(item.label, (value) => value);
         element.append(binding.node);
 
-        return {
-          node: element,
-          cleanup: binding.cleanup,
-        };
+        return binding.cleanup
+          ? { node: element, cleanup: binding.cleanup }
+          : { node: element };
       },
     });
 
@@ -580,6 +315,84 @@ describe("dom bindings", () => {
 
     expect(host.textContent).toBe("Amazing GraceAda");
     expect(renderCount).toBe(4);
+
+    rendered.cleanup?.();
+  });
+});
+
+describe("SVG JSX support", () => {
+  it("creates SVG elements in the SVG namespace", () => {
+    const svgEl = jsx("svg", { viewBox: "0 0 100 100" }) as {
+      node: Element;
+    };
+
+    expect(svgEl.node).toBeInstanceOf(SVGElement);
+    expect(svgEl.node.namespaceURI).toBe("http://www.w3.org/2000/svg");
+    expect(svgEl.node.getAttribute("viewBox")).toBe("0 0 100 100");
+  });
+
+  it("creates nested SVG child elements in the SVG namespace", () => {
+    const rendered = jsx("svg", {
+      children: jsx("path", { d: "M0,0 L10,10" }),
+    }) as { node: Element };
+
+    const path = rendered.node.firstChild as Element;
+    expect(path).toBeInstanceOf(SVGElement);
+    expect(path.namespaceURI).toBe("http://www.w3.org/2000/svg");
+    expect(path.getAttribute("d")).toBe("M0,0 L10,10");
+
+    rendered.cleanup?.();
+  });
+
+  it("applies static style string to SVG elements", () => {
+    const rendered = jsx("svg", {
+      style: "display:block",
+    }) as { node: SVGElement };
+
+    expect(rendered.node.getAttribute("style")).toBe("display:block");
+  });
+
+  it("applies style: reactive bindings to SVG elements", () => {
+    const color = pulse("red");
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+
+    const cleanup = bindStyle(svgEl, "color", color);
+
+    expect(svgEl.style.getPropertyValue("color")).toBe("red");
+
+    color.set("blue");
+
+    expect(svgEl.style.getPropertyValue("color")).toBe("blue");
+
+    cleanup();
+  });
+
+  it("renders a complete sparkline-style SVG tree via JSX", () => {
+    const d = pulse("M0,0 L10,10");
+    const stroke = pulse("green");
+
+    const rendered = jsx("svg", {
+      viewBox: "0 0 100 32",
+      children: jsx("path", {
+        fill: "none",
+        d,
+        stroke,
+      }),
+    }) as { node: Element; cleanup?: () => void };
+
+    const host = document.createElement("div");
+    host.append(rendered.node);
+
+    const path = host.querySelector("path") as Element;
+    expect(path.namespaceURI).toBe("http://www.w3.org/2000/svg");
+    expect(path.getAttribute("d")).toBe("M0,0 L10,10");
+    expect(path.getAttribute("stroke")).toBe("green");
+
+    d.set("M0,0 L20,5");
+    stroke.set("red");
+
+    expect(path.getAttribute("d")).toBe("M0,0 L20,5");
+    expect(path.getAttribute("stroke")).toBe("red");
 
     rendered.cleanup?.();
   });

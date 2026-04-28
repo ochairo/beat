@@ -33,7 +33,3 @@ jobs:
 
       - name: Run scaffold integration smoke test
         run: pnpm test:scaffold
-
-      - name: Verify create-beat package can be packed
-        working-directory: create-beat
-        run: npm pack --dry-run

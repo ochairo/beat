@@ -4,6 +4,6 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
-    exclude: ["dist/**", "playwright/**"],
+    exclude: ["dist/**", "playwright/**", "tests/create-beat.test.ts"],
   },
 });

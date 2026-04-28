@@ -1,4 +1,4 @@
-import type { Pulse, PulseMutation } from "@ochairo/pulse";
+import type { Pulse } from "@ochairo/pulse";
 
 export type BeatCleanup = () => void;
 
@@ -6,22 +6,6 @@ export interface BeatRendered<TNode extends Node = Node> {
   readonly node: TNode;
   readonly cleanup?: BeatCleanup;
 }
-
-export type BeatFieldBindings<TValue extends object> = Partial<{
-  [TKey in keyof TValue]: (value: TValue[TKey]) => void;
-}>;
-
-export interface BeatMaskedBinding<TValue> {
-  readonly fullMask: number;
-  getChangeMask(changes: readonly PulseMutation[]): number;
-  apply(value: TValue, mask: number): void;
-}
-
-export type BeatObjectMaskMap<TValue extends object> = Partial<
-  Record<Extract<keyof TValue, string>, number>
->;
-
-const noop = (): void => {};
 
 function defaultTextFormat<TValue>(value: TValue): string {
   return String(value);
@@ -36,6 +20,12 @@ function defaultStyleMap<TValue>(value: TValue): string {
 }
 
 function canWriteAsProperty(element: Element, propertyName: string): boolean {
+  // SVG IDL attributes (e.g. viewBox, transform) are read-only object wrappers
+  // (SVGAnimatedXxx) — always use setAttribute for SVG elements.
+  if (element instanceof SVGElement) {
+    return false;
+  }
+
   return (
     propertyName in element &&
     !propertyName.startsWith("data-") &&
@@ -86,110 +76,6 @@ function createPropertyWriter(
   };
 }
 
-function isStructuralArrayChange(changes: readonly PulseMutation[]): boolean {
-  return changes.some((change) => {
-    const segment = change.path[0];
-    return (
-      segment === "length" ||
-      (typeof segment === "number" && change.path.length === 1)
-    );
-  });
-}
-
-function readImmediateChildKeys(value: unknown): PropertyKey[] {
-  if (Array.isArray(value)) {
-    return Object.keys(value);
-  }
-
-  if (typeof value === "object" && value !== null) {
-    return Reflect.ownKeys(value);
-  }
-
-  return [];
-}
-
-function hasSameImmediateChildKeys(
-  previousKeys: readonly PropertyKey[],
-  value: unknown,
-): boolean {
-  if (Array.isArray(value)) {
-    return hasSameEnumerableKeys(previousKeys, value);
-  }
-
-  if (typeof value === "object" && value !== null) {
-    return hasSameEnumerableKeys(
-      previousKeys,
-      value as Record<PropertyKey, unknown>,
-    );
-  }
-
-  return previousKeys.length === 0;
-}
-
-function hasSameEnumerableKeys(
-  previousKeys: readonly PropertyKey[],
-  value: Record<PropertyKey, unknown> | readonly unknown[],
-): boolean {
-  let index = 0;
-
-  for (const key in value) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) {
-      continue;
-    }
-
-    if (!Object.is(previousKeys[index], key)) {
-      return false;
-    }
-
-    index += 1;
-  }
-
-  return index === previousKeys.length;
-}
-
-function getRequiredArrayItemPulse<TValue>(
-  items: Pulse<readonly TValue[]>,
-  index: number,
-): Pulse<TValue> {
-  const child = items[index];
-
-  if (!child) {
-    throw new Error(`Missing pulse item at index ${index}`);
-  }
-
-  return child as Pulse<TValue>;
-}
-
-function getObjectChildPulse<TValue extends object, TKey extends keyof TValue>(
-  node: Pulse<TValue>,
-  key: TKey,
-): Pulse<TValue[TKey]> {
-  return node.prop(key as never) as Pulse<TValue[TKey]>;
-}
-
-function getImmediateChildPulse<TValue>(
-  node: Pulse<TValue>,
-  key: PropertyKey,
-): Pulse<unknown> {
-  return node.prop(key as never) as Pulse<unknown>;
-}
-
-function normalizeRendered<TNode extends Node>(
-  rendered: TNode | BeatRendered<TNode>,
-): BeatRendered<TNode> {
-  if (rendered instanceof Node) {
-    return { node: rendered };
-  }
-
-  return rendered;
-}
-
-function runCleanups(cleanups: readonly BeatCleanup[]): void {
-  for (const cleanup of cleanups) {
-    cleanup();
-  }
-}
-
 export function composeCleanup(
   ...cleanups: Array<BeatCleanup | undefined>
 ): BeatCleanup {
@@ -224,135 +110,6 @@ export function bindText<TValue>(
   };
 }
 
-export function bindFields<TValue extends object>(
-  node: Pulse<TValue>,
-  bindings: BeatFieldBindings<TValue>,
-): BeatCleanup {
-  const entries = Object.entries(bindings) as Array<
-    [keyof TValue, (value: TValue[keyof TValue]) => void]
-  >;
-
-  const cleanups = entries.map(([key, apply]) => {
-    const child = getObjectChildPulse(node, key);
-    apply(child.get());
-
-    return child.on((event) => {
-      apply(event.currentValue);
-    });
-  });
-
-  return composeCleanup(...cleanups);
-}
-
-export function bindMasked<TValue>(
-  node: Pulse<TValue>,
-  binding: BeatMaskedBinding<TValue>,
-): BeatCleanup {
-  binding.apply(node.get(), binding.fullMask);
-
-  const initialKeys = readImmediateChildKeys(node.get());
-
-  if (initialKeys.length === 0) {
-    return node.on((event) => {
-      const mask =
-        event.changes.length === 0
-          ? binding.fullMask
-          : binding.getChangeMask(event.changes);
-
-      if (mask !== 0) {
-        binding.apply(event.currentValue, mask);
-      }
-    });
-  }
-
-  let trackedKeys = initialKeys;
-  let childCleanups: BeatCleanup[] = [];
-
-  const subscribeChildren = (): void => {
-    runCleanups(childCleanups);
-    childCleanups = trackedKeys.map((key) => {
-      const child = getImmediateChildPulse(node, key);
-
-      return child.on((event) => {
-        const mask = binding.getChangeMask(event.changes);
-
-        if (mask !== 0) {
-          binding.apply(node.get(), mask);
-        }
-      });
-    });
-  };
-
-  subscribeChildren();
-
-  const unsubscribeNode = node.on((event) => {
-    if (!hasSameImmediateChildKeys(trackedKeys, event.currentValue)) {
-      const mask =
-        event.changes.length === 0
-          ? binding.fullMask
-          : binding.getChangeMask(event.changes);
-
-      trackedKeys = readImmediateChildKeys(event.currentValue);
-      subscribeChildren();
-
-      if (mask !== 0) {
-        binding.apply(event.currentValue, mask);
-      }
-    }
-  });
-
-  return () => {
-    unsubscribeNode();
-    runCleanups(childCleanups);
-    childCleanups = [];
-  };
-}
-
-export function bindExactMasked<TValue>(
-  node: Pulse<TValue>,
-  binding: BeatMaskedBinding<TValue>,
-): BeatCleanup {
-  binding.apply(node.get(), binding.fullMask);
-
-  return node.on((event) => {
-    const mask =
-      event.changes.length === 0
-        ? binding.fullMask
-        : binding.getChangeMask(event.changes);
-
-    if (mask !== 0) {
-      binding.apply(event.currentValue, mask);
-    }
-  });
-}
-
-export function createObjectKeyMask<TValue extends object>(
-  maskByKey: BeatObjectMaskMap<TValue>,
-  fullMask: number,
-): (changes: readonly PulseMutation[]) => number {
-  return (changes) => {
-    let mask = 0;
-
-    for (const change of changes) {
-      const key = change.key;
-
-      if (typeof key !== "string") {
-        return fullMask;
-      }
-
-      const bit = maskByKey[key as Extract<keyof TValue, string>];
-
-      if (bit === undefined) {
-        return fullMask;
-      }
-
-      mask |= bit;
-    }
-
-    return mask;
-  };
-}
-
 export function bindClass<TValue>(
   element: Element,
   className: string,
@@ -379,34 +136,8 @@ export function bindClass<TValue>(
   });
 }
 
-export function bindClasses<TValue>(
-  element: Element,
-  node: Pulse<TValue>,
-  mapValue: (value: TValue) => Record<string, boolean>,
-  onChange?: (value: TValue) => void,
-): BeatCleanup {
-  let currentClasses = mapValue(node.get());
-
-  for (const [className, enabled] of Object.entries(currentClasses)) {
-    element.classList.toggle(className, enabled);
-  }
-
-  return node.on((event) => {
-    const nextClasses = mapValue(event.currentValue);
-
-    for (const [className, enabled] of Object.entries(nextClasses)) {
-      if (currentClasses[className] !== enabled) {
-        element.classList.toggle(className, enabled);
-      }
-    }
-
-    currentClasses = nextClasses;
-    onChange?.(event.currentValue);
-  });
-}
-
 export function bindStyle<TValue>(
-  element: HTMLElement,
+  element: HTMLElement | SVGElement,
   propertyName: string,
   node: Pulse<TValue>,
   mapValue: (value: TValue) => string = defaultStyleMap,
@@ -463,53 +194,5 @@ export function on<TElement extends EventTarget>(
   element.addEventListener(eventName, handler, options);
   return () => {
     element.removeEventListener(eventName, handler, options);
-  };
-}
-
-export function mountEach<TValue>(
-  parent: Element,
-  items: Pulse<readonly TValue[]>,
-  renderItem: (item: Pulse<TValue>, index: number) => Node | BeatRendered<Node>,
-): BeatCleanup {
-  let itemCleanups: BeatCleanup[] = [];
-
-  const renderAll = (): void => {
-    runCleanups(itemCleanups);
-    itemCleanups = [];
-
-    const fragment = document.createDocumentFragment();
-    const values = items.get();
-
-    for (let index = 0; index < values.length; index += 1) {
-      const itemPulse = getRequiredArrayItemPulse(items, index);
-      const rendered = normalizeRendered(renderItem(itemPulse, index));
-      itemCleanups.push(rendered.cleanup ?? noop);
-      fragment.append(rendered.node);
-    }
-
-    parent.replaceChildren(fragment);
-  };
-
-  renderAll();
-
-  const unsubscribeItems = items.on((event) => {
-    if (
-      isStructuralArrayChange(event.changes) &&
-      event.currentValue.length === event.previousValue.length
-    ) {
-      renderAll();
-    }
-  });
-
-  const unsubscribeLength = items.length.on(() => {
-    renderAll();
-  });
-
-  return () => {
-    unsubscribeItems();
-    unsubscribeLength();
-    runCleanups(itemCleanups);
-    itemCleanups = [];
-    parent.replaceChildren();
   };
 }

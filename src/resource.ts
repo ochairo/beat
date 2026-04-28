@@ -47,13 +47,6 @@ export interface CreateBeatResourceCacheOptions {
 
 export type BeatResourceCacheEviction = "lru" | "fifo";
 
-export interface CreateBeatDebouncedResourceOptions<
-  TSource,
-  TValue,
-> extends CreateBeatResourceOptions<TSource, TValue> {
-  readonly debounceMs: number;
-}
-
 interface BeatResourceCacheEntry<TValue> {
   readonly data: TValue;
   readonly expiresAt: number | undefined;
@@ -149,14 +142,21 @@ function createResourceCacheStore<TValue>(
             : Date.now() + effectiveCacheTimeMs,
       });
 
-      if (
-        options.maxEntries !== undefined &&
-        options.maxEntries > 0 &&
-        entries.size > options.maxEntries
-      ) {
-        const oldestKey = entries.keys().next().value;
-        if (oldestKey !== undefined) {
-          entries.delete(oldestKey);
+      if (options.maxEntries !== undefined && options.maxEntries > 0) {
+        let scopedCount = 0;
+        let firstScopedKey: string | undefined;
+
+        for (const key of entries.keys()) {
+          if (isScopedKey(key)) {
+            if (firstScopedKey === undefined) {
+              firstScopedKey = key;
+            }
+            scopedCount += 1;
+          }
+        }
+
+        if (scopedCount > options.maxEntries && firstScopedKey !== undefined) {
+          entries.delete(firstScopedKey);
         }
       }
     },
@@ -386,19 +386,4 @@ export function createResource<TSource, TValue>(
       unsubscribe?.();
     },
   };
-}
-
-export function createDebouncedResource<TSource, TValue>(
-  options: CreateBeatDebouncedResourceOptions<TSource, TValue>,
-): BeatResource<TValue> {
-  return createResource(options);
-}
-
-export function createStaleWhileRefreshResource<TSource, TValue>(
-  options: CreateBeatResourceOptions<TSource, TValue>,
-): BeatResource<TValue> {
-  return createResource({
-    ...options,
-    keepStaleWhileRefreshing: true,
-  });
 }

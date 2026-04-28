@@ -12,8 +12,8 @@
   },
   "include": [
     "./**/*.ts",
-    "../create-beat/index.mjs",
-    "../create-beat/**/*.d.ts"
+    "../../beat-create/index.mjs",
+    "../../beat-create/**/*.d.ts"
   ],
   "exclude": [
     "../dist",

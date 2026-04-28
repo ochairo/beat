@@ -32,25 +32,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify tag matches Beat and create-beat versions
+      - name: Verify tag matches version
         run: |
           node <<'EOF'
           const { readFileSync } = require('node:fs');
 
-          const beatPackage = JSON.parse(readFileSync('package.json', 'utf8'));
-          const createBeatPackage = JSON.parse(readFileSync('create-beat/package.json', 'utf8'));
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
           const tag = process.env.GITHUB_REF_NAME;
-          const expected = `v${beatPackage.version}`;
-
-          if (beatPackage.version !== createBeatPackage.version) {
-            console.error(
-              `Beat version ${beatPackage.version} does not match create-beat version ${createBeatPackage.version}.`,
-            );
-            process.exit(1);
-          }
+          const expected = `v${pkg.version}`;
 
           if (tag !== expected) {
-            console.error(`Tag ${tag} does not match package.json version ${beatPackage.version}.`);
+            console.error(`Tag ${tag} does not match package.json version ${pkg.version}.`);
             process.exit(1);
           }
           EOF
@@ -61,11 +53,7 @@ jobs:
       - name: Run scaffold integration smoke test
         run: pnpm test:scaffold
 
-      - name: Verify Beat package can be packed
-        run: npm pack --dry-run
-
-      - name: Verify create-beat package can be packed
-        working-directory: create-beat
+      - name: Verify package can be packed
         run: npm pack --dry-run
 
       - name: Verify packed package provenance metadata
@@ -75,46 +63,42 @@ jobs:
           const { unlinkSync } = require('node:fs');
           const { resolve } = require('node:path');
 
+          const expectedName = '@ochairo/beat';
           const expectedRepositoryUrl = 'https://github.com/ochairo/beat';
 
-          function verifyPackedManifest(directory, expectedName) {
-            const packOutput = execFileSync('npm', ['pack', '--json'], {
-              cwd: directory,
-              encoding: 'utf8',
-            });
-            const [{ filename }] = JSON.parse(packOutput);
-            const tarballPath = resolve(directory, filename);
+          const packOutput = execFileSync('npm', ['pack', '--json'], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+          });
+          const [{ filename }] = JSON.parse(packOutput);
+          const tarballPath = resolve(process.cwd(), filename);
 
-            try {
-              const manifestText = execFileSync(
-                'tar',
-                ['-xOf', tarballPath, 'package/package.json'],
-                { encoding: 'utf8' },
+          try {
+            const manifestText = execFileSync(
+              'tar',
+              ['-xOf', tarballPath, 'package/package.json'],
+              { encoding: 'utf8' },
+            );
+            const manifest = JSON.parse(manifestText);
+
+            if (manifest.name !== expectedName) {
+              throw new Error(
+                `Packed package name ${manifest.name} does not match expected ${expectedName}.`,
               );
-              const manifest = JSON.parse(manifestText);
-
-              if (manifest.name !== expectedName) {
-                throw new Error(
-                  `Packed package name ${manifest.name} does not match expected ${expectedName}.`,
-                );
-              }
-
-              if (manifest.repository?.url !== expectedRepositoryUrl) {
-                throw new Error(
-                  `Packed package ${expectedName} has repository.url ${JSON.stringify(manifest.repository?.url ?? '')}, expected ${JSON.stringify(expectedRepositoryUrl)}.`,
-                );
-              }
-            } finally {
-              unlinkSync(tarballPath);
             }
-          }
 
-          verifyPackedManifest(process.cwd(), '@ochairo/beat');
-          verifyPackedManifest(resolve(process.cwd(), 'create-beat'), '@ochairo/create-beat');
+            if (manifest.repository?.url !== expectedRepositoryUrl) {
+              throw new Error(
+                `Packed package has repository.url ${JSON.stringify(manifest.repository?.url ?? '')}, expected ${JSON.stringify(expectedRepositoryUrl)}.`,
+              );
+            }
+          } finally {
+            unlinkSync(tarballPath);
+          }
           EOF
 
       - name: Check npm for existing @ochairo/beat version
-        id: beat_registry
+        id: registry
         run: |
           package_version=$(node -p "require('./package.json').version")
           published_version=$(npm view @ochairo/beat version 2>/dev/null || true)
@@ -127,37 +111,12 @@ jobs:
           fi
 
       - name: Publish @ochairo/beat to npm
-        if: steps.beat_registry.outputs.skip_publish != 'true'
-        run: pnpm publish --provenance --no-git-checks --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Report skipped Beat publish
-        if: steps.beat_registry.outputs.skip_publish == 'true'
-        run: |
-          echo "@ochairo/beat@${{ steps.beat_registry.outputs.package_version }} is already on npm."
-
-      - name: Check npm for existing @ochairo/create-beat version
-        id: create_beat_registry
-        run: |
-          package_version=$(node -p "require('./create-beat/package.json').version")
-          published_version=$(npm view @ochairo/create-beat version 2>/dev/null || true)
-          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
-          echo "published_version=$published_version" >> "$GITHUB_OUTPUT"
-          if [ "$published_version" = "$package_version" ]; then
-            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Publish @ochairo/create-beat to npm
-        if: steps.create_beat_registry.outputs.skip_publish != 'true'
-        working-directory: create-beat
+        if: steps.registry.outputs.skip_publish != 'true'
         run: pnpm publish --provenance --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Report skipped publish
-        if: steps.create_beat_registry.outputs.skip_publish == 'true'
+        if: steps.registry.outputs.skip_publish == 'true'
         run: |
-          echo "@ochairo/create-beat@${{ steps.create_beat_registry.outputs.package_version }} is already on npm."
+          echo "@ochairo/beat@${{ steps.registry.outputs.package_version }} is already on npm."

@@ -1,6 +1,6 @@
 {
   "name": "@ochairo/beat",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Pulse-native SPA runtime for DOM-first applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,18 +26,15 @@
   "sideEffects": false,
   "files": [
     "dist/**/*.js",
+    "dist/**/*.js.map",
     "dist/**/*.d.ts",
-    "!dist/**/*.test.*",
-    "!dist/**/*.map"
+    "!dist/**/*.test.*"
   ],
   "scripts": {
-    "benchmark:prepare": "pnpm --dir ../pulse build && pnpm build",
-    "benchmark": "pnpm benchmark:prepare && node ./benchmarks/runtime.mjs",
-    "benchmark:report": "pnpm benchmark:prepare && node ./benchmarks/report.mjs",
     "build": "pnpm clean && tsc && pnpm build:minify",
     "build:minify": "esbuild dist/index.js --outdir=dist --format=esm --allow-overwrite --minify --legal-comments=none --tree-shaking=true",
-    "test:scaffold": "node ./scripts/scaffold-smoke.mjs",
     "test": "vitest run",
+    "test:scaffold": "vitest run --config vitest.scaffold.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "validate": "pnpm test && pnpm typecheck && pnpm build",
@@ -64,7 +61,7 @@
     "url": "https://github.com/ochairo/beat/issues"
   },
   "dependencies": {
-    "@ochairo/pulse": "^1.0.7"
+    "@ochairo/pulse": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",

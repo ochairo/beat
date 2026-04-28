@@ -74,7 +74,12 @@ function transformIntrinsicAttributes(
 
       if (attribute.name.namespace.text === "style") {
         styleBindings.push(
-          ts.factory.createPropertyAssignment(bindingName, bindingValue),
+          ts.factory.createPropertyAssignment(
+            /[^a-zA-Z0-9_$]/.test(bindingName)
+              ? ts.factory.createStringLiteral(bindingName)
+              : bindingName,
+            bindingValue,
+          ),
         );
         changed = true;
         continue;
