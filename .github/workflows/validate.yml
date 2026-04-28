@@ -30,5 +30,3 @@ jobs:
 
       - name: Run Beat validation
         run: pnpm validate
-
-
