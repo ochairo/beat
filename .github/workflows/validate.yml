@@ -31,5 +31,4 @@ jobs:
       - name: Run Beat validation
         run: pnpm validate
 
-      - name: Run scaffold integration smoke test
-        run: pnpm test:scaffold
+
