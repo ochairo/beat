@@ -853,6 +853,22 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
   const targetWindow = options.window ?? window;
   const compiledRoutes = compileRoutes(options.routes);
   const basePath = options.basePath ?? "";
+  const normalizedBase = trimSlashes(basePath);
+  const basePrefix = normalizedBase === "" ? "" : `/${normalizedBase}`;
+
+  const resolveUrl = (path: string): URL => {
+    if (
+      basePrefix !== "" &&
+      path.startsWith("/") &&
+      !path.startsWith(basePrefix + "/") &&
+      path !== basePrefix
+    ) {
+      return new URL(basePrefix + path, targetWindow.location.href);
+    }
+
+    return new URL(path, targetWindow.location.href);
+  };
+
   const current = pulse<InternalBeatRouteMatch>(
     matchRoute(new URL(targetWindow.location.href), compiledRoutes, basePath),
   );
@@ -959,7 +975,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
             ? route.redirectTo(match)
             : route.redirectTo,
         );
-        nextUrl = new URL(redirect.to, targetWindow.location.href);
+        nextUrl = resolveUrl(redirect.to);
         replace = replace || redirect.replace !== false;
         continue;
       }
@@ -977,7 +993,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
 
         if (guardResult && guardResult !== true) {
           const redirect = normalizeTarget(guardResult);
-          nextUrl = new URL(redirect.to, targetWindow.location.href);
+          nextUrl = resolveUrl(redirect.to);
           replace = replace || redirect.replace !== false;
           continue;
         }
@@ -1304,11 +1320,11 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
     current,
     ...(options.onError ? { onError: options.onError } : {}),
     resolve(to: string): URL {
-      return new URL(to, targetWindow.location.href);
+      return resolveUrl(to);
     },
     navigate(to: string, options?: BeatNavigateOptions): void {
       const resolved = resolveNavigation(
-        new URL(to, targetWindow.location.href),
+        resolveUrl(to),
         current.get(),
         options?.replace === true,
       );
@@ -1320,11 +1336,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
       applyResolvedNavigation(resolved, true);
     },
     prefetch(to: string): Promise<void> {
-      const resolved = resolveNavigation(
-        new URL(to, targetWindow.location.href),
-        current.get(),
-        true,
-      );
+      const resolved = resolveNavigation(resolveUrl(to), current.get(), true);
 
       if (!resolved) {
         return Promise.resolve();
@@ -1339,11 +1351,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
         return;
       }
 
-      const resolved = resolveNavigation(
-        new URL(to, targetWindow.location.href),
-        current.get(),
-        true,
-      );
+      const resolved = resolveNavigation(resolveUrl(to), current.get(), true);
 
       if (!resolved) {
         return;
