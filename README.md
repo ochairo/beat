@@ -64,10 +64,12 @@ export const App = component(() => {
 
 ## Documentation
 
-- [Getting Started](./docs/GETTING_STARTED.md)
-- [Existing App Setup](./docs/EXISTING_APP.md)
-- [API documentation](./docs/API.md)
-- [Compiler Contract](./docs/COMPILER.md)
+Visit the official documentation site: **[ochairo.github.io/beat](https://ochairo.github.io/beat/)**
+
+- [Getting Started](https://ochairo.github.io/beat/docs/getting-started)
+- [Existing App Setup](https://ochairo.github.io/beat/docs/existing-app)
+- [API Reference](https://ochairo.github.io/beat/docs/api)
+- [Compiler Contract](https://ochairo.github.io/beat/docs/compiler)
 
 <br>
 
