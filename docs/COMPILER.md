@@ -2,7 +2,7 @@
 
 This document describes the current compiler-facing contract for Beat's JSX transform.
 
-Beat `1.0.x` freezes the documented lowering model unless a change fixes incorrect behavior.
+Beat `1.1.x` freezes the documented lowering model unless a change fixes incorrect behavior.
 
 ## Scope
 
@@ -112,7 +112,7 @@ Beat intentionally does not do this for mixed content such as:
 
 ## Stability Expectations
 
-For the current `1.0.x` line:
+For the current `1.1.x` line:
 
 - the public syntax documented above is the contract
 - the exact generated internal prop names are not public API

@@ -8,20 +8,20 @@ This guide walks through a small Beat application using:
 - route prefetch
 - explicit async resources
 
-This guide reflects the recommended Beat `1.0.x` usage model.
+This guide reflects the recommended Beat `1.1.x` usage model.
 
 ## 1. Scaffold A New App
 
 Fastest path:
 
 ```sh
-pnpm create @ochairo/create-beat my-app
+pnpm dlx @ochairo/beat-create my-app
 ```
 
-For the router starter:
+For the showcases starter:
 
 ```sh
-pnpm create @ochairo/create-beat my-app --template router
+pnpm dlx @ochairo/beat-create my-app --template showcases
 ```
 
 If you want to wire Beat into an existing app manually, use [Existing App Setup](./EXISTING_APP.md).
@@ -174,6 +174,3 @@ After this guide, the most useful references are:
 
 - [API](./API.md)
 - [Compiler Contract](./COMPILER.md)
-- [Benchmark Methodology](./BENCHMARKS.md)
-- [Support Policy](./SUPPORT.md)
-- [1.0 Checklist](./V1_CHECKLIST.md)

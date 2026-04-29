@@ -14,15 +14,21 @@ _Fine-grained rendering with explicit routing and async primitives._
 Start a new app with the scaffolder:
 
 ```sh
-pnpm create @ochairo/create-beat my-app --template router
+pnpm dlx @ochairo/beat-create my-app
 ```
 
-That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin with routing support.
+Use the `showcases` template for a full-featured app with routing, crypto dashboard, kanban board, and spreadsheet:
+
+```sh
+pnpm dlx @ochairo/beat-create my-app --template showcases
+```
+
+That command scaffolds a Vite + TypeScript starter already configured for Beat's JSX runtime and Vite plugin.
 
 ## Example
 
 ```tsx
-import { bindText, component } from "@ochairo/beat";
+import { component } from "@ochairo/beat";
 import { pulse } from "@ochairo/pulse";
 
 const counter = pulse(0);
@@ -41,7 +47,7 @@ export const App = component(() => {
         <button class="button" onClick={() => onclick(-1)}>
           -
         </button>
-        <strong class="result">{bindText(counter)}</strong>
+        <strong class="result">{counter}</strong>
         <button class="button" onClick={() => onclick(1)}>
           +
         </button>
@@ -57,7 +63,6 @@ export const App = component(() => {
 - [Existing App Setup](./docs/EXISTING_APP.md)
 - [API documentation](./docs/API.md)
 - [Compiler Contract](./docs/COMPILER.md)
-- [Support Policy](./docs/SUPPORT.md)
 
 <br>
 

@@ -2,13 +2,12 @@
 
 This document describes the current public API of `@ochairo/beat`.
 
-This reference documents Beat's stable `1.0.x` contract for client-rendered SPA applications.
-For the broader framework direction and release goals, see `docs/V1_CHECKLIST.md`.
-For compiler behavior and environment/versioning policy, see `docs/COMPILER.md` and `docs/SUPPORT.md`.
+This reference documents Beat's stable `1.1.x` contract for client-rendered SPA applications.
+For compiler behavior and environment/versioning policy, see `docs/COMPILER.md`.
 
 ## Stability
 
-Beat is currently in the `1.0.x` release line.
+Beat is currently in the `1.1.x` release line.
 
 That means:
 
@@ -78,37 +77,6 @@ The intended model is:
 
 ## Core Runtime
 
-### `createApp(options)`
-
-Create an app wrapper around an existing root Pulse state.
-
-```ts
-createApp<TRootState>(options: CreateBeatAppOptions<TRootState>): BeatApp<TRootState>
-```
-
-`CreateBeatAppOptions`:
-
-```ts
-interface CreateBeatAppOptions<TRootState> {
-  readonly state: BeatRootState<TRootState>;
-  readonly mount: (context: BeatMountContext<TRootState>) => void | BeatDispose;
-}
-```
-
-`BeatApp`:
-
-```ts
-interface BeatApp<TRootState> {
-  readonly state: BeatRootState<TRootState>;
-  readonly mounted: boolean;
-  mount(target: Element): void;
-  destroy(): void;
-}
-```
-
-Use `createApp()` when you want a small mount lifecycle around an existing root state object.
-For JSX-first apps, `createRoot()` is usually the more direct entry point.
-
 ### `createRoot(target)`
 
 Create a Beat render root for a DOM element.
@@ -171,11 +139,9 @@ onCleanup(cleanup: BeatCleanup): void
 This must run inside `component(...)`.
 It throws if used outside an active Beat component scope.
 
-### `Show` and `show(...)`
+### `Show`
 
 Conditional rendering primitive.
-
-Component form:
 
 ```ts
 interface ShowProps<TValue> {
@@ -186,24 +152,11 @@ interface ShowProps<TValue> {
 }
 ```
 
-Function form:
+Use `Show` for explicit mount/unmount branch behavior.
 
-```ts
-show<TValue>(
-  condition: Pulse<TValue>,
-  renderWhenTrue: BeatJsxChild | ((value: TValue) => BeatJsxChild),
-  renderWhenFalse?: BeatJsxChild | ((value: TValue) => BeatJsxChild),
-  mapValue?: (value: TValue) => boolean,
-): BeatRendered<DocumentFragment>
-```
-
-Use `Show` or `show(...)` for explicit mount/unmount branch behavior.
-
-### `For` and `forEach(...)`
+### `For`
 
 Keyed collection rendering primitive.
-
-Component form:
 
 ```ts
 interface ForProps<TValue> {
@@ -215,29 +168,12 @@ interface ForProps<TValue> {
 
 `For` keeps a stable `Pulse<TValue>` per keyed entry. Exact-path writes like `rows[0].label.set(...)` update that entry in place and should not remount sibling entries.
 
-Function form:
-
-```ts
-forEach<TValue>(
-  items: Pulse<readonly TValue[]>,
-  renderItem: (value: Pulse<TValue>, index: number) => BeatJsxChild,
-  getKey?: (value: TValue, index: number) => PropertyKey,
-): BeatRendered<DocumentFragment>
-```
-
 Important behavior:
 
 - each rendered item receives a stable `Pulse<TValue>` for the keyed item
 - Beat reuses keyed entries where possible
 - child-pulse field updates continue to flow through reused keyed entries without requiring structural array changes
 - structural list changes remount only the entries that need to move or be created
-
-### `toRendered(value)`
-
-Normalize Beat JSX output into a rendered node plus optional cleanup.
-
-This is mostly a low-level escape hatch for runtime integrations.
-Most app code should not need it.
 
 ### Shared JSX Types
 
@@ -251,141 +187,6 @@ Beat exports several shared JSX and component types:
 - `ForProps`
 
 Use these in libraries built on top of Beat when you need to type component inputs or low-level view helpers.
-
-## DOM Bindings
-
-These APIs connect Pulse values directly to DOM nodes and elements.
-They are important for library authors and for high-performance view code.
-
-### `bindText(node, formatValue?, onChange?)`
-
-```ts
-bindText<TValue>(
-  node: Pulse<TValue>,
-  formatValue?: (value: TValue) => string,
-  onChange?: (value: TValue) => void,
-): BeatRendered<Text>
-```
-
-Create a text node that stays subscribed to a Pulse value.
-
-### `bindClass(element, className, node, mapValue?, onChange?)`
-
-```ts
-bindClass<TValue>(
-  element: Element,
-  className: string,
-  node: Pulse<TValue>,
-  mapValue?: (value: TValue) => boolean,
-  onChange?: (value: TValue) => void,
-): BeatCleanup
-```
-
-Toggle a single class name from a Pulse value.
-
-### `bindClasses(element, node, mapValue, onChange?)`
-
-```ts
-bindClasses<TValue>(
-  element: Element,
-  node: Pulse<TValue>,
-  mapValue: (value: TValue) => Record<string, boolean>,
-  onChange?: (value: TValue) => void,
-): BeatCleanup
-```
-
-Bind multiple classes at once from a mapped object.
-
-### `bindStyle(element, propertyName, node, mapValue?, onChange?)`
-
-```ts
-bindStyle<TValue>(
-  element: HTMLElement,
-  propertyName: string,
-  node: Pulse<TValue>,
-  mapValue?: (value: TValue) => string,
-  onChange?: (value: TValue) => void,
-): BeatCleanup
-```
-
-Bind a single style property to a Pulse value.
-
-### `bindProperty(element, propertyName, node, mapValue?, onChange?)`
-
-```ts
-bindProperty<TValue>(
-  element: Element,
-  propertyName: string,
-  node: Pulse<TValue>,
-  mapValue?: (value: TValue) => unknown,
-  onChange?: (value: TValue) => void,
-): BeatCleanup
-```
-
-Bind a DOM property or attribute to a Pulse value.
-This is the low-level primitive used by Beat's lowered `prop:*` bindings.
-
-### `bindFields(node, bindings)`
-
-```ts
-bindFields<TValue extends object>(
-  node: Pulse<TValue>,
-  bindings: BeatFieldBindings<TValue>,
-): BeatCleanup
-```
-
-Bind an object-shaped Pulse node by field.
-This is the preferred maintainable path for repeated object-shaped UI where a single object write updates several related fields.
-Beat subscribes to each exact child field directly, so `node.count.set(...)` or an ancestor replacement that changes `count` both update the bound field without relying on parent listener fanout.
-
-### `bindMasked(node, binding)`
-
-```ts
-bindMasked<TValue>(
-  node: Pulse<TValue>,
-  binding: BeatMaskedBinding<TValue>,
-): BeatCleanup
-```
-
-Use a bitmask-driven binding strategy for extremely hot repeated-object update paths.
-This is a lower-level performance primitive than `bindFields()`.
-For object-like values, Beat tracks immediate exact child paths and applies the mask from those child mutations instead of assuming object-level listeners see descendant writes.
-
-### `createObjectKeyMask(maskByKey, fullMask)`
-
-```ts
-createObjectKeyMask<TValue extends object>(
-  maskByKey: BeatObjectMaskMap<TValue>,
-  fullMask: number,
-): (changes: readonly PulseMutation[]) => number
-```
-
-Helper for turning Pulse object-key mutations into bitmasks consumed by `bindMasked()`.
-
-### `mountEach(items, renderItem, getKey?)`
-
-`mountEach(...)` is a DOM-level list mounting helper used by Beat's collection rendering path.
-Prefer `For` or `forEach(...)` for normal application code unless you are building low-level abstractions.
-It watches exact array replacement and `length` changes, which matches Pulse's exact-path array semantics.
-
-### `on(element, event, handler, options?)`
-
-Register a DOM event listener and return a cleanup function.
-
-Use this when building manual DOM helpers or wrapper components.
-
-### `composeCleanup(...cleanups)`
-
-Combine multiple cleanup functions into one cleanup function.
-
-### Shared DOM Types
-
-Beat exports these DOM helper types:
-
-- `BeatCleanup`
-- `BeatRendered`
-- `BeatMaskedBinding`
-- `BeatObjectMaskMap`
 
 ## Router
 
@@ -481,6 +282,8 @@ interface BeatRouteMatch {
   readonly data: unknown;
   readonly error: unknown;
   outlet(name?: string): BeatJsxChild | null;
+  navigate(to: string, options?: BeatNavigateOptions): void;
+  back(): void;
 }
 ```
 
@@ -490,6 +293,8 @@ Important behavior:
 - `routeData` contains per-branch route loader state
 - `outlet()` renders the next branch level
 - `outlet(name)` renders a named outlet branch
+- `navigate(to)` navigates to a new route from the current match context
+- `back()` navigates to the previous history entry
 
 ### Router Components
 
@@ -522,11 +327,6 @@ interface OutletProps {
 ```
 
 Render the current route branch or named outlet branch.
-
-#### `outlet(router, name?)`
-
-Low-level helper form of outlet rendering.
-Prefer `Outlet({ router, name })` or JSX `<Outlet router={router} />` in normal usage.
 
 ### Router Types
 
@@ -606,26 +406,6 @@ Important current behavior:
 - resources can run without a source pulse when used as manual loaders
 - resource state remains explicit instead of being hidden behind Suspense-style control flow
 
-### `createDebouncedResource(options)`
-
-```ts
-createDebouncedResource<TSource, TValue>(
-  options: CreateBeatDebouncedResourceOptions<TSource, TValue>,
-): BeatResource<TValue>
-```
-
-This is a convenience wrapper around `createResource()` with required `debounceMs`.
-
-### `createStaleWhileRefreshResource(options)`
-
-```ts
-createStaleWhileRefreshResource<TSource, TValue>(
-  options: CreateBeatResourceOptions<TSource, TValue>,
-): BeatResource<TValue>
-```
-
-This is a convenience wrapper around `createResource()` with `keepStaleWhileRefreshing: true`.
-
 ### `createResourceCache(options?)`
 
 ```ts
@@ -680,7 +460,6 @@ Beat exports these resource-related types:
 - `BeatResourceCache`
 - `BeatResourceCacheEviction`
 - `CreateBeatResourceOptions`
-- `CreateBeatDebouncedResourceOptions`
 - `CreateBeatResourceCacheOptions`
 
 ## Vite Plugin
@@ -733,10 +512,4 @@ For most app code, start with:
 - `component()` and `onCleanup()`
 - `Show` and `For`
 - `createRouter()`, `Link`, and `Outlet`
-- `createResource()` or one of the resource wrappers
-
-Reach for the low-level DOM helpers when:
-
-- you are building Beat abstractions
-- you need object-level optimized bindings
-- you are tuning a hot rendering path
+- `createResource()`
