@@ -93,10 +93,18 @@ function isStylable(element: Element): element is HTMLElement | SVGElement {
   return element instanceof HTMLElement || element instanceof SVGElement;
 }
 
+/** Covariant read-only subset of Pulse used for JSX children. */
+interface ReadablePulse<out T> {
+  get(): T;
+  on(
+    callback: (event: { currentValue: T; previousValue: T }) => void,
+  ): () => void;
+}
+
 export type BeatJsxChild =
   | BeatRendered<Node>
   | Node
-  | Pulse<unknown>
+  | ReadablePulse<unknown>
   | string
   | number
   | bigint

@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@ochairo/pulse':
-        specifier: ^1.1.1
-        version: 1.1.1
+        specifier: ^1.1.2
+        version: 1.1.2
     devDependencies:
       '@types/node':
         specifier: ^20.10.5
@@ -192,8 +192,8 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@ochairo/pulse@1.1.1':
-    resolution: {integrity: sha512-AJlUln2OC2/RRezumDlOCSOZQ0UsaYfPOnrN6SBTClctqpLOcoFhyvbubZKVH7rSAGuhm2LPB66DTDJ853hlWw==}
+  '@ochairo/pulse@1.1.2':
+    resolution: {integrity: sha512-P5tnWePC7t95pVaYFQXnNUwkZoWrlDQI1X8KAbMCMzl39Sjh0TAjiEkSLWyPaPlad9k8YwXJhOgaYn3H+w8W6w==}
     engines: {node: '>=24.0.0 <25.0.0', pnpm: '>=10.0.0'}
 
   '@rollup/rollup-android-arm-eabi@4.60.1':
@@ -737,7 +737,7 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@ochairo/pulse@1.1.1': {}
+  '@ochairo/pulse@1.1.2': {}
 
   '@rollup/rollup-android-arm-eabi@4.60.1':
     optional: true

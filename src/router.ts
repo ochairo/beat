@@ -47,6 +47,8 @@ export interface BeatRouteMatch {
   readonly data: unknown;
   readonly error: unknown;
   outlet(name?: string): BeatJsxChild | null;
+  navigate(to: string, options?: BeatNavigateOptions): void;
+  back(): void;
 }
 
 export interface BeatRouteBranchMatch {
@@ -426,6 +428,8 @@ function matchRoute(
         outlet() {
           return null;
         },
+        navigate() {},
+        back() {},
       };
     }
   }
@@ -446,6 +450,8 @@ function matchRoute(
     outlet() {
       return null;
     },
+    navigate() {},
+    back() {},
   };
 }
 
@@ -543,6 +549,8 @@ function decorateRouteMatch(
     outlet() {
       return null;
     },
+    navigate() {},
+    back() {},
   };
 }
 
@@ -815,6 +823,12 @@ function createScopedMatch(
       }
 
       return renderBranchOutlet(router, branch.locator, depthIndex + 1);
+    },
+    navigate(to: string, options?: BeatNavigateOptions) {
+      router.navigate(to, options);
+    },
+    back() {
+      router.back();
     },
   };
 }
