@@ -1,6 +1,6 @@
 {
   "name": "@ochairo/beat",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Pulse-native SPA runtime for DOM-first applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -55,7 +55,7 @@
     "type": "git",
     "url": "https://github.com/ochairo/beat"
   },
-  "homepage": "https://github.com/ochairo/beat#readme",
+  "homepage": "https://ochairo.github.io/beat-site/",
   "bugs": {
     "url": "https://github.com/ochairo/beat/issues"
   },

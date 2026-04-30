@@ -12,6 +12,8 @@ _Fine-grained rendering with explicit routing and async primitives._
 ![CI](https://github.com/ochairo/beat/workflows/validate/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+[Documentation](https://ochairo.github.io/beat-site/)
+
 </div>
 
 ## Scaffold
