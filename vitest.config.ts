@@ -1,11 +1,12 @@
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
+const pulseSource = resolve(__dirname, "../pulse/src/index.ts");
+
 export default defineConfig({
   resolve: {
-    alias: {
-      "@ochairo/pulse": resolve(__dirname, "../pulse/src/index.ts"),
-    },
+    alias: existsSync(pulseSource) ? { "@ochairo/pulse": pulseSource } : {},
   },
   test: {
     environment: "happy-dom",
