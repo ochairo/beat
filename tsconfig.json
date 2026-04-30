@@ -26,7 +26,12 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
-    "noPropertyAccessFromIndexSignature": true
+    "noPropertyAccessFromIndexSignature": true,
+    "paths": {
+      "@ochairo/pulse": [
+        "../pulse/dist/index.d.ts"
+      ]
+    }
   },
   "include": [
     "src/**/*"

@@ -61,20 +61,3 @@ export const App = component(() => {
   );
 });
 ```
-
-## Documentation
-
-Visit the official documentation site: **[ochairo.github.io/beat](https://ochairo.github.io/beat/)**
-
-- [Getting Started](https://ochairo.github.io/beat/docs/getting-started)
-- [Existing App Setup](https://ochairo.github.io/beat/docs/existing-app)
-- [API Reference](https://ochairo.github.io/beat/docs/api)
-- [Compiler Contract](https://ochairo.github.io/beat/docs/compiler)
-
-<br>
-
-<div align="center">
-
-[Report Bug](https://github.com/ochairo/beat/issues) • [Request Feature](https://github.com/ochairo/beat/issues)
-
-</div>

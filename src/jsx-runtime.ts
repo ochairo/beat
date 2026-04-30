@@ -1,4 +1,9 @@
-import { isPulse, type Pulse, type PulseMutation } from "@ochairo/pulse";
+import {
+  isPulse,
+  type Pulse,
+  type PulseMutation,
+  type ReadonlyPulse,
+} from "@ochairo/pulse";
 import {
   bindClass,
   bindProperty,
@@ -121,13 +126,13 @@ export interface BeatJsxProps {
   readonly children?: BeatJsxChild;
   readonly class?: unknown;
   readonly className?: unknown;
-  readonly ref?: ((node: Node) => void) | undefined;
+  readonly ref?: ((element: Element) => void) | undefined;
   readonly style?: Record<string, string | number> | string | undefined;
   readonly [key: string]: unknown;
 }
 
 export interface ShowProps<TValue> {
-  readonly when: Pulse<TValue>;
+  readonly when: Pulse<TValue> | ReadonlyPulse<TValue>;
   readonly children: BeatJsxChild | ((value: TValue) => BeatJsxChild);
   readonly fallback?: BeatJsxChild | ((value: TValue) => BeatJsxChild);
   readonly mapValue?: (value: TValue) => boolean;
@@ -479,8 +484,18 @@ export function onCleanup(cleanup: BeatCleanup): void {
   currentScope.cleanups.push(cleanup);
 }
 
+export function onMount(callback: () => void): void {
+  const currentScope = scopeStack[scopeStack.length - 1];
+
+  if (!currentScope) {
+    throw new Error("onMount must run inside a Beat component scope");
+  }
+
+  queueMicrotask(callback);
+}
+
 export function show<TValue>(
-  condition: Pulse<TValue>,
+  condition: Pulse<TValue> | ReadonlyPulse<TValue>,
   renderWhenTrue: BeatJsxChild | ((value: TValue) => BeatJsxChild),
   renderWhenFalse?: BeatJsxChild | ((value: TValue) => BeatJsxChild),
   mapValue: (value: TValue) => boolean = (value) => Boolean(value),
@@ -676,6 +691,8 @@ export function jsx<TProps>(
   const element = createDomElement(type);
   const cleanups: BeatCleanup[] = [];
 
+  let refCallback: ((element: Element) => void) | undefined;
+
   for (const [propertyName, value] of Object.entries(resolvedProps)) {
     if (propertyName === "children" || propertyName === "key") {
       continue;
@@ -687,7 +704,7 @@ export function jsx<TProps>(
 
     if (propertyName === "ref") {
       if (typeof value === "function") {
-        value(element);
+        refCallback = value as (element: Element) => void;
       }
       continue;
     }
@@ -719,6 +736,8 @@ export function jsx<TProps>(
   if (resolvedProps.children !== undefined) {
     cleanups.push(appendChildren(element, resolvedProps.children) ?? noop);
   }
+
+  refCallback?.(element);
 
   return {
     node: element,

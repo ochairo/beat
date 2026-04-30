@@ -1,10 +1,11 @@
-import { pulse } from "@ochairo/pulse";
+import { derived, pulse } from "@ochairo/pulse";
 import { describe, expect, it } from "vitest";
 import { jsx } from "../src/jsx-runtime.js";
 import {
   component,
   createRoot,
   onCleanup,
+  onMount,
   render,
   Show,
 } from "../src/index.js";
@@ -81,5 +82,132 @@ describe("render root", () => {
     root.destroy();
 
     expect(cleanupCount).toBe(1);
+  });
+});
+
+describe("onMount", () => {
+  it("runs callback asynchronously after component setup", async () => {
+    const target = document.createElement("div");
+    const order: string[] = [];
+
+    const App = component(() => {
+      order.push("setup");
+
+      onMount(() => {
+        order.push("mount");
+      });
+
+      order.push("return");
+      return jsx("span", { children: "hello" });
+    });
+
+    render(target, jsx(App, {}));
+    order.push("after-render");
+
+    expect(order).toEqual(["setup", "return", "after-render"]);
+
+    await new Promise((resolve) => queueMicrotask(resolve));
+
+    expect(order).toEqual(["setup", "return", "after-render", "mount"]);
+  });
+
+  it("has access to the rendered DOM after mount", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    let refElement: Element | undefined;
+    let mountedElement: Element | undefined;
+
+    const App = component(() => {
+      onMount(() => {
+        mountedElement = target.querySelector("span") ?? undefined;
+      });
+
+      return jsx("span", {
+        children: "content",
+        ref: (el: Element) => {
+          refElement = el;
+        },
+      });
+    });
+
+    render(target, jsx(App, {}));
+
+    expect(refElement).toBeInstanceOf(HTMLSpanElement);
+    expect(mountedElement).toBeUndefined();
+
+    await new Promise((resolve) => queueMicrotask(resolve));
+
+    expect(mountedElement).toBeInstanceOf(HTMLSpanElement);
+
+    document.body.removeChild(target);
+  });
+
+  it("throws when called outside a component scope", () => {
+    expect(() => {
+      onMount(() => {});
+    }).toThrow("onMount must run inside a Beat component scope");
+  });
+});
+
+describe("ref typing", () => {
+  it("ref callback receives an Element", () => {
+    const target = document.createElement("div");
+    let received: Element | undefined;
+
+    const App = component(() => {
+      return jsx("div", {
+        ref: (el: Element) => {
+          received = el;
+        },
+      });
+    });
+
+    render(target, jsx(App, {}));
+
+    expect(received).toBeInstanceOf(HTMLDivElement);
+  });
+
+  it("ref callback receives an SVG Element for svg tags", () => {
+    const target = document.createElement("div");
+    let received: Element | undefined;
+
+    const App = component(() => {
+      return jsx("svg", {
+        ref: (el: Element) => {
+          received = el;
+        },
+      });
+    });
+
+    render(target, jsx(App, {}));
+
+    expect(received).toBeInstanceOf(SVGSVGElement);
+  });
+});
+
+describe("derived with Show", () => {
+  it("Show works with a derived pulse", () => {
+    const target = document.createElement("div");
+    const count = pulse(0);
+    const hasItems = derived(count, (v) => v > 0);
+
+    render(
+      target,
+      Show({
+        when: hasItems,
+        children: "has items",
+        fallback: "empty",
+      }),
+    );
+
+    expect(target.textContent).toBe("empty");
+
+    count.set(5);
+
+    expect(target.textContent).toBe("has items");
+
+    count.set(0);
+
+    expect(target.textContent).toBe("empty");
   });
 });

@@ -1,4 +1,4 @@
-import type { Pulse } from "@ochairo/pulse";
+import type { Pulse, ReadonlyPulse } from "@ochairo/pulse";
 
 export type BeatCleanup = () => void;
 
@@ -87,7 +87,7 @@ export function composeCleanup(
 }
 
 export function bindText<TValue>(
-  node: Pulse<TValue>,
+  node: Pulse<TValue> | ReadonlyPulse<TValue>,
   formatValue: (value: TValue) => string = defaultTextFormat,
   onChange?: (value: TValue) => void,
 ): BeatRendered<Text> {
@@ -113,7 +113,7 @@ export function bindText<TValue>(
 export function bindClass<TValue>(
   element: Element,
   className: string,
-  node: Pulse<TValue>,
+  node: Pulse<TValue> | ReadonlyPulse<TValue>,
   mapValue: (value: TValue) => boolean = defaultClassMap,
   onChange?: (value: TValue) => void,
 ): BeatCleanup {
@@ -139,7 +139,7 @@ export function bindClass<TValue>(
 export function bindStyle<TValue>(
   element: HTMLElement | SVGElement,
   propertyName: string,
-  node: Pulse<TValue>,
+  node: Pulse<TValue> | ReadonlyPulse<TValue>,
   mapValue: (value: TValue) => string = defaultStyleMap,
   onChange?: (value: TValue) => void,
 ): BeatCleanup {
@@ -165,7 +165,7 @@ export function bindStyle<TValue>(
 export function bindProperty<TValue>(
   element: Element,
   propertyName: string,
-  node: Pulse<TValue>,
+  node: Pulse<TValue> | ReadonlyPulse<TValue>,
   mapValue: (value: TValue) => unknown = (value) => value,
   onChange?: (value: TValue) => void,
 ): BeatCleanup {

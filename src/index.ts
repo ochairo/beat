@@ -6,6 +6,7 @@ export {
   Show,
   component,
   onCleanup,
+  onMount,
   type BeatScope,
   type BeatComponent,
   type BeatJsxChild,
