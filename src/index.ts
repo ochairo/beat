@@ -15,7 +15,7 @@ export {
   type ShowProps,
 } from "./jsx-runtime.js";
 
-export { createRoot, render, type BeatRoot } from "./render.js";
+export { createRoot, hydrate, render, type BeatRoot } from "./render.js";
 
 export {
   Link,

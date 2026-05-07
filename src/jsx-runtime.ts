@@ -14,6 +14,7 @@ import {
   type BeatCleanup,
   type BeatRendered,
 } from "./dom.js";
+import { isInSsr } from "./ssr-context.js";
 
 export const Fragment = Symbol.for("@ochairo/beat/Fragment");
 
@@ -489,6 +490,12 @@ export function onMount(callback: () => void): void {
 
   if (!currentScope) {
     throw new Error("onMount must run inside a Beat component scope");
+  }
+
+  // During server-side rendering there is no DOM lifecycle — skip the
+  // microtask to prevent callbacks firing against a torn-down tree.
+  if (isInSsr()) {
+    return;
   }
 
   queueMicrotask(callback);

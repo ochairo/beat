@@ -70,6 +70,17 @@ export interface CreateBeatRouterOptions {
   readonly basePath?: string;
   readonly prefetchCacheMaxEntries?: number;
   readonly window?: Window;
+  /**
+   * Initial URL for server-side rendering. When provided, the router resolves
+   * the matching route from this URL instead of reading `window.location`.
+   * All navigation and history operations become no-ops.
+   *
+   * @example
+   * ```ts
+   * const router = createRouter({ routes, initialUrl: "https://example.com/blog/post-1" });
+   * ```
+   */
+  readonly initialUrl?: string;
   readonly onError?: (event: BeatRouteErrorEvent) => void;
 }
 
@@ -850,7 +861,21 @@ function renderNamedOutlet(
 }
 
 export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
-  const targetWindow = options.window ?? window;
+  // When `initialUrl` is supplied without a real window (SSR), use a no-op
+  // stub so that all browser-specific APIs (history, popstate) are silent.
+  const noOpWindow = options.initialUrl
+    ? ({
+        location: { href: options.initialUrl },
+        history: {
+          pushState() {},
+          replaceState() {},
+          back() {},
+        },
+        addEventListener() {},
+        removeEventListener() {},
+      } as unknown as Window)
+    : undefined;
+  const targetWindow = options.window ?? noOpWindow ?? window;
   const compiledRoutes = compileRoutes(options.routes);
   const basePath = options.basePath ?? "";
   const normalizedBase = trimSlashes(basePath);

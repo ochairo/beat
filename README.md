@@ -4,8 +4,8 @@
 
 <h1>beat</h1>
 
-[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse)-native JSX framework for direct-DOM client-rendered SPA applications.<br>
-_Fine-grained rendering with explicit routing and async primitives._
+[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse)-native JSX framework for direct-DOM applications.<br>
+_Fine-grained rendering with explicit routing, async primitives, and SSR._
 
 [![npm version](https://img.shields.io/npm/v/@ochairo/beat)](https://www.npmjs.com/package/@ochairo/beat)
 [![npm downloads](https://img.shields.io/npm/dm/@ochairo/beat)](https://www.npmjs.com/package/@ochairo/beat)
@@ -63,3 +63,37 @@ export const App = component(() => {
   );
 });
 ```
+
+## Server-Side Rendering
+
+Beat's SSR uses the same component tree and router — two entry points, no new framework.
+
+```ts
+// entry-server.ts
+import { Window } from "happy-dom";
+import { createRouter } from "@ochairo/beat";
+import { renderToString, waitForRouter } from "@ochairo/beat/server";
+
+export async function render(url: string): Promise<string> {
+  const win = new Window({ url });
+  globalThis.document = win.document as unknown as Document;
+
+  const router = createRouter({ routes, initialUrl: url });
+  await waitForRouter(router, { signal: AbortSignal.timeout(5_000) });
+  const html = renderToString(() => <App router={router} />);
+
+  win.happyDOM.close();
+  return `<div id="app">${html}</div>`;
+}
+
+// entry-client.ts
+import { createRouter, hydrate } from "@ochairo/beat";
+
+const router = createRouter({ routes, window });
+hydrate(document.getElementById("app")!, <App router={router} />);
+```
+
+- `initialUrl` — resolves the route on the server without reading `window.location`
+- `waitForRouter` — waits for route loaders to settle before rendering; accepts `AbortSignal`
+- `renderToString` — takes a factory `() => JSX`; suppresses `onMount` on the server
+- `hydrate` — single atomic swap from server HTML to live Beat tree, no blank frame

@@ -47,3 +47,32 @@ export function render(target: Element, view: BeatJsxChild): BeatCleanup {
     root.destroy();
   };
 }
+
+/**
+ * Attaches a Beat view to a server-rendered `target` using **replace
+ * hydration**: the view is fully rendered into detached nodes first, then
+ * swapped into the target in a single `replaceChildren` call.
+ *
+ * This means the server HTML remains visible in the browser while the
+ * client bundle loads and executes — the swap is instantaneous and leaves
+ * no blank intermediate frame.
+ *
+ * @example
+ * ```ts
+ * // entry-client.ts
+ * import { createRouter } from "@ochairo/beat";
+ * import { hydrate } from "@ochairo/beat";
+ *
+ * const router = createRouter({ routes, window });
+ * hydrate(document.getElementById("app")!, <App router={router} />);
+ * ```
+ */
+export function hydrate(target: Element, view: BeatJsxChild): BeatCleanup {
+  const rendered = toRendered(view);
+  // Single atomic swap — server HTML → live Beat tree, no blank frame.
+  target.replaceChildren(rendered.node);
+  return () => {
+    rendered.cleanup?.();
+    target.replaceChildren();
+  };
+}

@@ -277,6 +277,9 @@ sessions/
 # TypeScript cache
 *.tsbuildinfo
 
+# Local-only TypeScript config (not committed)
+tsconfig.local.json
+
 # Optional npm cache directory
 .npm
 
