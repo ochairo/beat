@@ -42,11 +42,19 @@ Entry points are exported from `src/index.ts`. The JSX runtime subpaths (`jsx-ru
 
 ## Pull Request Guidelines
 
-1. Fork the repo and create a branch from `main`
-2. Write tests for any new functionality
-3. Make sure `pnpm validate` passes
-4. Keep PRs focused — one feature or fix per PR
-5. Write clear commit messages
+1. Start by opening or confirming the issue you are working on
+2. Fork the repo and create a branch from `develop` using the format `feature/<issueNo>`
+3. Open pull requests against `develop`. Contributor changes should not target `main` directly
+4. Write tests for any new functionality
+5. Make sure `pnpm validate` passes
+6. Keep PRs focused — one feature or fix per PR
+7. Write clear commit messages
+
+## Release Flow
+
+Regular development happens on `develop`.
+Contributors should create an issue first, then branch from `develop` as `feature/<issueNo>` and open the pull request back into `develop`.
+To publish a release, maintainers merge `develop` into `main` and create the release tag from `main`.
 
 ## Code Style
 
