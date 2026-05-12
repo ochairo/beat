@@ -1,4 +1,4 @@
-import { pulse, type Pulse } from "@ochairo/pulse";
+import { pulse, type ReadonlyPulse } from "@ochairo/pulse";
 import {
   jsx,
   toRendered,
@@ -105,7 +105,7 @@ export interface BeatRouteErrorEvent {
 }
 
 export interface BeatRouter {
-  readonly current: Pulse<BeatRouteMatch>;
+  readonly current: ReadonlyPulse<BeatRouteMatch>;
   readonly onError?: (event: BeatRouteErrorEvent) => void;
   resolve(to: string): URL;
   navigate(to: string, options?: BeatNavigateOptions): void;

@@ -1,6 +1,11 @@
 import { pulse, type Pulse } from "@ochairo/pulse";
 import { describe, expect, it } from "vitest";
-import { bindProperty, bindStyle, bindText } from "../src/dom.js";
+import {
+  bindProperty,
+  bindStyle,
+  bindText,
+  type BeatRendered,
+} from "../src/dom.js";
 import { jsx } from "../src/jsx-runtime.js";
 import { For, Show } from "../src/index.js";
 
@@ -322,9 +327,9 @@ describe("dom bindings", () => {
 
 describe("SVG JSX support", () => {
   it("creates SVG elements in the SVG namespace", () => {
-    const svgEl = jsx("svg", { viewBox: "0 0 100 100" }) as {
-      node: Element;
-    };
+    const svgEl = jsx("svg", {
+      viewBox: "0 0 100 100",
+    }) as BeatRendered<Element>;
 
     expect(svgEl.node).toBeInstanceOf(SVGElement);
     expect(svgEl.node.namespaceURI).toBe("http://www.w3.org/2000/svg");
@@ -334,7 +339,7 @@ describe("SVG JSX support", () => {
   it("creates nested SVG child elements in the SVG namespace", () => {
     const rendered = jsx("svg", {
       children: jsx("path", { d: "M0,0 L10,10" }),
-    }) as { node: Element };
+    }) as BeatRendered<Element>;
 
     const path = rendered.node.firstChild as Element;
     expect(path).toBeInstanceOf(SVGElement);
@@ -347,7 +352,7 @@ describe("SVG JSX support", () => {
   it("applies static style string to SVG elements", () => {
     const rendered = jsx("svg", {
       style: "display:block",
-    }) as { node: SVGElement };
+    }) as BeatRendered<SVGElement>;
 
     expect(rendered.node.getAttribute("style")).toBe("display:block");
   });

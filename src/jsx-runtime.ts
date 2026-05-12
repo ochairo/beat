@@ -143,8 +143,10 @@ export interface BeatScope {
   readonly cleanups: BeatCleanup[];
 }
 
+type BeatArrayPulse<TValue> = Pulse<TValue[]> | Pulse<readonly TValue[]>;
+
 export interface ForProps<TValue> {
-  readonly each: Pulse<readonly TValue[]>;
+  readonly each: BeatArrayPulse<TValue>;
   readonly children: (value: Pulse<TValue>, index: number) => BeatJsxChild;
   readonly key?: (value: TValue, index: number) => PropertyKey;
 }
@@ -398,7 +400,7 @@ function clearBetween(start: Comment, end: Comment): void {
 }
 
 function getRequiredArrayItemPulse<TValue>(
-  items: Pulse<readonly TValue[]>,
+  items: BeatArrayPulse<TValue>,
   index: number,
 ): Pulse<TValue> {
   const child = items[index];
@@ -411,7 +413,7 @@ function getRequiredArrayItemPulse<TValue>(
 }
 
 function renderEntry<TValue>(
-  items: Pulse<readonly TValue[]>,
+  items: BeatArrayPulse<TValue>,
   value: TValue,
   index: number,
   key: PropertyKey,
@@ -510,26 +512,86 @@ export function show<TValue>(
   const fragment = document.createDocumentFragment();
   const start = document.createComment("beat-show-start");
   const end = document.createComment("beat-show-end");
-  let cleanupCurrentBranch: BeatCleanup = noop;
+
+  // Non-function (static) branches are pre-rendered once into a stash fragment
+  // and moved between the stash and the live DOM (never removed/destroyed).
+  // Function branches are re-invoked on each render to produce fresh nodes.
+  const trueIsStatic = typeof renderWhenTrue !== "function";
+  const falseIsStatic =
+    renderWhenFalse !== undefined && typeof renderWhenFalse !== "function";
+
+  interface StaticBranch {
+    readonly stash: DocumentFragment;
+    readonly cleanup: BeatCleanup;
+  }
+
+  const trueStatic: StaticBranch | null = trueIsStatic
+    ? (() => {
+        const rendered = normalizeRendered(renderWhenTrue as BeatJsxChild);
+        const stash = document.createDocumentFragment();
+        stash.append(rendered.node);
+        return { stash, cleanup: rendered.cleanup ?? noop };
+      })()
+    : null;
+
+  const falseStatic: StaticBranch | null = falseIsStatic
+    ? (() => {
+        const rendered = normalizeRendered(renderWhenFalse as BeatJsxChild);
+        const stash = document.createDocumentFragment();
+        stash.append(rendered.node);
+        return { stash, cleanup: rendered.cleanup ?? noop };
+      })()
+    : null;
+
+  let cleanupDynamicBranch: BeatCleanup = noop;
+  let liveStaticBranch: StaticBranch | null = null;
+
+  // Moves live nodes back into their stash fragment (so they can be re-shown).
+  const retractBetween = (stash: DocumentFragment): void => {
+    let current = start.nextSibling;
+    while (current !== null && current !== end) {
+      const next = current.nextSibling;
+      stash.appendChild(current);
+      current = next;
+    }
+  };
 
   const renderBranch = (value: TValue): void => {
-    cleanupCurrentBranch();
-    cleanupCurrentBranch = noop;
-    clearBetween(start, end);
+    const showTrue = mapValue(value);
+    const currentStatic = showTrue ? trueStatic : falseStatic;
 
-    const branch = mapValue(value) ? renderWhenTrue : renderWhenFalse;
-    if (branch === undefined) {
-      return;
+    // Move the currently-shown static branch back to its stash.
+    if (liveStaticBranch !== null) {
+      retractBetween(liveStaticBranch.stash);
+      liveStaticBranch = null;
     }
 
-    const rendered = normalizeRendered(
-      typeof branch === "function"
-        ? (branch as (value: TValue) => BeatJsxChild)(value)
-        : branch,
-    );
+    // Tear down any dynamic branch that was live.
+    cleanupDynamicBranch();
+    cleanupDynamicBranch = noop;
 
-    end.parentNode?.insertBefore(rendered.node, end);
-    cleanupCurrentBranch = rendered.cleanup ?? noop;
+    // When the previously rendered branch was dynamic, remove its live nodes.
+    if (liveStaticBranch === null) {
+      clearBetween(start, end);
+    }
+
+    const container = end.parentNode;
+    if (container === null) return;
+
+    if (currentStatic !== null) {
+      // Re-show the static branch by moving from its stash into the live DOM.
+      container.insertBefore(currentStatic.stash, end);
+      liveStaticBranch = currentStatic;
+    } else {
+      // Dynamic branch: re-invoke the factory for fresh nodes.
+      const branch = showTrue ? renderWhenTrue : renderWhenFalse;
+      if (branch === undefined) return;
+      const rendered = normalizeRendered(
+        (branch as (value: TValue) => BeatJsxChild)(value),
+      );
+      container.insertBefore(rendered.node, end);
+      cleanupDynamicBranch = rendered.cleanup ?? noop;
+    }
   };
 
   fragment.append(start, end);
@@ -543,7 +605,9 @@ export function show<TValue>(
     node: fragment,
     cleanup: () => {
       unsubscribe();
-      cleanupCurrentBranch();
+      cleanupDynamicBranch();
+      trueStatic?.cleanup();
+      falseStatic?.cleanup();
       clearBetween(start, end);
       start.remove();
       end.remove();
@@ -552,7 +616,7 @@ export function show<TValue>(
 }
 
 export function forEach<TValue>(
-  items: Pulse<readonly TValue[]>,
+  items: BeatArrayPulse<TValue>,
   renderItem: (value: Pulse<TValue>, index: number) => BeatJsxChild,
   getKey: (value: TValue, index: number) => PropertyKey = (_, index) => index,
 ): BeatRendered<DocumentFragment> {

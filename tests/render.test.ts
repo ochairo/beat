@@ -210,4 +210,68 @@ describe("derived with Show", () => {
 
     expect(target.textContent).toBe("empty");
   });
+
+  it("Show fallback re-renders its DOM on repeated toggles (static branch reuse)", () => {
+    const target = document.createElement("div");
+    const visible = pulse(false);
+
+    const Fallback = component(() => jsx("span", { children: "fallback" }));
+    const Content = component(() => jsx("span", { children: "content" }));
+
+    render(
+      target,
+      Show({
+        when: visible,
+        children: jsx(Content, {}),
+        fallback: jsx(Fallback, {}),
+      }),
+    );
+
+    // Initially shows fallback
+    expect(target.textContent).toBe("fallback");
+
+    // Switch to content
+    visible.set(true);
+    expect(target.textContent).toBe("content");
+
+    // Back to fallback — static branch must re-appear with its DOM
+    visible.set(false);
+    expect(target.textContent).toBe("fallback");
+
+    // And again — must keep working on repeated toggles
+    visible.set(true);
+    expect(target.textContent).toBe("content");
+
+    visible.set(false);
+    expect(target.textContent).toBe("fallback");
+  });
+
+  it("Show with mapValue re-renders static branches on repeated toggles", () => {
+    const target = document.createElement("div");
+    const value = pulse<string | null>(null);
+
+    render(
+      target,
+      Show({
+        when: value,
+        mapValue: (v) => v !== null,
+        children: jsx("span", { children: "active" }),
+        fallback: jsx("span", { children: "inactive" }),
+      }),
+    );
+
+    expect(target.textContent).toBe("inactive");
+
+    value.set("x");
+    expect(target.textContent).toBe("active");
+
+    value.set(null);
+    expect(target.textContent).toBe("inactive");
+
+    value.set("y");
+    expect(target.textContent).toBe("active");
+
+    value.set(null);
+    expect(target.textContent).toBe("inactive");
+  });
 });
