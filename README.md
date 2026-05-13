@@ -4,8 +4,8 @@
 
 <h1>beat</h1>
 
-[Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse)-native JSX framework for direct-DOM applications.<br>
-_Fine-grained rendering with explicit routing, async primitives, and SSR._
+JSX framework built on [Pulse](https://github.com/ochairo/pulse?tab=readme-ov-file#-pulse) for predictable apps with local updates.<br>
+_Run-once components, local updates, explicit routing, async resources, and SSR._
 
 [![npm version](https://img.shields.io/npm/v/@ochairo/beat)](https://www.npmjs.com/package/@ochairo/beat)
 [![npm downloads](https://img.shields.io/npm/dm/@ochairo/beat)](https://www.npmjs.com/package/@ochairo/beat)
@@ -15,6 +15,16 @@ _Fine-grained rendering with explicit routing, async primitives, and SSR._
 [Documentation](https://ochairo.github.io/beat-site/)
 
 </div>
+
+## Overview
+
+Beat is built for apps that should stay understandable as they grow.
+The public model stays explicit:
+
+- **Run-once components** — a component behaves like setup code, not a rerender loop
+- **Local updates** — Pulse exact-path subscriptions update only the binding that depends on the changed value
+- **Explicit router and resources** — routing state and async state stay in normal userland APIs
+- **Shared client/server model** — the same component tree and router power rendering, hydration, and SSR
 
 ## Scaffold
 

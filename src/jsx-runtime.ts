@@ -267,12 +267,25 @@ function createPropertyOrAttributeApplier(
     };
   }
 
+  const clearProperty = (): void => {
+    if (!writeAsProperty) {
+      return;
+    }
+
+    if (propertyName === "value") {
+      dynamicElement[propertyName] = "";
+      return;
+    }
+
+    if (propertyName === "checked" || propertyName === "selected") {
+      dynamicElement[propertyName] = false;
+    }
+  };
+
   return (value: unknown): void => {
     if (value === null || value === undefined) {
       element.removeAttribute(propertyName);
-      if (writeAsProperty) {
-        dynamicElement[propertyName] = undefined;
-      }
+      clearProperty();
       return;
     }
 
@@ -688,6 +701,8 @@ export function forEach<TValue>(
 
   const unsubscribeItems = items.on((event) => {
     if (
+      Array.isArray(event.currentValue) &&
+      Array.isArray(event.previousValue) &&
       isStructuralArrayChange(event.changes) &&
       event.currentValue.length === event.previousValue.length
     ) {
@@ -697,6 +712,16 @@ export function forEach<TValue>(
       }
 
       mountEntries(event.currentValue, parent);
+      return;
+    }
+
+    if (!Array.isArray(event.currentValue)) {
+      const parent = end.parentNode;
+      if (!parent) {
+        return;
+      }
+
+      mountEntries(items.get(), parent);
       return;
     }
 

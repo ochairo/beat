@@ -62,6 +62,17 @@ describe("render root", () => {
     expect(target.textContent).toBe("");
   });
 
+  it("omits undefined id attributes instead of rendering the string undefined", () => {
+    const target = document.createElement("div");
+
+    render(target, jsx("div", { id: undefined, children: "content" }));
+
+    const child = target.firstElementChild as HTMLDivElement | null;
+    expect(child).not.toBeNull();
+    expect(child?.hasAttribute("id")).toBe(false);
+    expect(child?.id).toBe("");
+  });
+
   it("component scope cleanup runs when a root is destroyed", () => {
     const target = document.createElement("div");
     let cleanupCount = 0;

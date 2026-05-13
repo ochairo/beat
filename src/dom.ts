@@ -40,12 +40,25 @@ function createPropertyWriter(
   const dynamicElement = element as unknown as Record<string, unknown>;
   const writeAsProperty = canWriteAsProperty(element, propertyName);
 
+  const clearProperty = (): void => {
+    if (!writeAsProperty) {
+      return;
+    }
+
+    if (propertyName === "value") {
+      dynamicElement[propertyName] = "";
+      return;
+    }
+
+    if (propertyName === "checked" || propertyName === "selected") {
+      dynamicElement[propertyName] = false;
+    }
+  };
+
   return (value: unknown): void => {
     if (value === null || value === undefined) {
       element.removeAttribute(propertyName);
-      if (writeAsProperty) {
-        dynamicElement[propertyName] = undefined;
-      }
+      clearProperty();
       return;
     }
 

@@ -110,6 +110,26 @@ describe("dom bindings", () => {
     rendered.cleanup?.();
   });
 
+  it("For survives ancestor replacements that update a keyed array", () => {
+    const state = pulse({ rows: [{ id: 1, label: "Ada" }] });
+    const rendered = For({
+      each: state.rows as Pulse<readonly { id: number; label: string }[]>,
+      key: (value) => value.id,
+      children: (row) => jsx("span", { children: row.label }),
+    });
+
+    const host = document.createElement("div");
+    host.append(rendered.node);
+
+    expect(host.textContent).toBe("Ada");
+
+    state.set({ rows: [{ id: 1, label: "Grace" }] });
+
+    expect(host.textContent).toBe("Grace");
+
+    rendered.cleanup?.();
+  });
+
   it("jsx binds pulse children and event listeners", () => {
     const label = pulse("Save");
     let clicked = 0;
@@ -244,6 +264,22 @@ describe("dom bindings", () => {
 
     cleanupValue();
     cleanupChecked();
+  });
+
+  it("bindProperty clears id when the pulse becomes undefined", () => {
+    const id = pulse<string | undefined>("root");
+    const element = document.createElement("div");
+
+    const cleanup = bindProperty(element, "id", id);
+
+    expect(element.id).toBe("root");
+
+    id.set(undefined);
+
+    expect(element.hasAttribute("id")).toBe(false);
+    expect(element.id).toBe("");
+
+    cleanup();
   });
 
   it("Show swaps branches and cleans up the previous branch", () => {
