@@ -2,18 +2,61 @@ import { enterSsr, exitSsr } from "./ssr-context.js";
 import { toRendered, type BeatJsxChild } from "./jsx-runtime.js";
 import type { BeatRouter } from "./router.js";
 
+const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+const RAW_TEXT_ELEMENTS = new Set([
+  "script", "style", "xmp", "iframe", "noembed", "noframes", "noscript",
+]);
+
+/** Rejects text trees whose HTML serialization could become active markup. */
+function validateSerialization(node: Node, restrictedContext = false): void {
+  if (node.nodeType !== 1) {
+    for (const child of node.childNodes) validateSerialization(child, restrictedContext);
+    return;
+  }
+  const element = node as Element;
+  const tag = element.localName.toLowerCase();
+  const html = element.namespaceURI === HTML_NAMESPACE;
+  const restricted = restrictedContext || !html ||
+    tag === "svg" || tag === "math" || tag === "select" || tag === "frameset";
+
+  if (html && tag === "plaintext") {
+    throw new TypeError("Beat SSR cannot safely serialize <plaintext>.");
+  }
+  if (html && (RAW_TEXT_ELEMENTS.has(tag) || tag === "textarea" || tag === "title")) {
+    if (Array.from(element.childNodes).some((child) => child.nodeType !== 3)) {
+      throw new TypeError(`Beat SSR requires text-only children in <${tag}>.`);
+    }
+    if (RAW_TEXT_ELEMENTS.has(tag) && (restricted || (element.textContent ?? "").includes("<"))) {
+      throw new TypeError(
+        `Beat SSR cannot safely serialize <${tag}> in this context or with '<' in its text. Use an external script/style or escape '<' in serialized string data.`,
+      );
+    }
+  }
+  for (const child of element.childNodes) validateSerialization(child, restricted);
+  if (html && tag === "template" && "content" in element) {
+    validateSerialization((element as HTMLTemplateElement).content, restricted);
+  }
+}
+
 /**
  * Renders a Beat JSX tree to an HTML string.
  *
  * `onMount` callbacks are suppressed during rendering — they will not fire
  * against the server-side DOM.
  *
- * Requires a DOM environment (`globalThis.document`) to be installed before
- * calling — use happy-dom or jsdom in your server entry point.
+ * Requires matching DOM globals (document, Node, HTMLElement, SVGElement, and
+ * DocumentFragment) during synchronous rendering; see the happy-dom example below.
  *
  * Pair with `createRouter({ initialUrl })` so the router resolves the correct
  * route without trying to read `window.location`. For routes with `load`
  * functions, await `waitForRouter(router)` before calling this.
+ *
+ * Raw-text elements (including script/style) require text-only children without
+ * '<', and cannot appear in foreign, select, or frameset contexts. Use external
+ * scripts/styles for code containing '<'; encode '<' as '\\u003c' only inside
+ * serialized JavaScript string data. textarea/title also require text children;
+ * plaintext is unsupported. This is not a sanitizer for trusted DOM attributes
+ * or intentionally executable JavaScript/CSS.
  *
  * @example
  * ```ts
@@ -24,14 +67,28 @@ import type { BeatRouter } from "./router.js";
  *
  * export async function render(url: string): Promise<string> {
  *   const win = new Window({ url });
- *   globalThis.document = win.document as unknown as Document;
- *
  *   const router = createRouter({ routes, initialUrl: url });
- *   await waitForRouter(router);
- *   const html = renderToString(() => <App router={router} />);
- *
- *   win.happyDOM.close();
- *   return html;
+ *   try {
+ *     await waitForRouter(router, { signal: AbortSignal.timeout(5_000) });
+ *     const previousGlobals = {
+ *       document: globalThis.document, Node: globalThis.Node,
+ *       HTMLElement: globalThis.HTMLElement, SVGElement: globalThis.SVGElement,
+ *       DocumentFragment: globalThis.DocumentFragment,
+ *     };
+ *     Object.assign(globalThis, {
+ *       document: win.document, Node: win.Node,
+ *       HTMLElement: win.HTMLElement, SVGElement: win.SVGElement,
+ *       DocumentFragment: win.DocumentFragment,
+ *     });
+ *     try {
+ *       return renderToString(() => <App router={router} />);
+ *     } finally {
+ *       Object.assign(globalThis, previousGlobals);
+ *     }
+ *   } finally {
+ *     router.dispose();
+ *     await win.happyDOM.close();
+ *   }
  * }
  * ```
  */
@@ -40,10 +97,13 @@ export function renderToString(factory: () => BeatJsxChild): string {
   try {
     const container = document.createElement("div");
     const rendered = toRendered(factory());
-    container.append(rendered.node);
-    const html = container.innerHTML;
-    rendered.cleanup?.();
-    return html;
+    try {
+      container.append(rendered.node);
+      validateSerialization(container);
+      return container.innerHTML;
+    } finally {
+      rendered.cleanup?.();
+    }
   } finally {
     exitSsr();
   }

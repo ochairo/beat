@@ -94,7 +94,7 @@ export interface BeatRouteGuardContext {
   readonly router: BeatRouter;
 }
 
-export type BeatRouteErrorPhase = "load" | "render";
+export type BeatRouteErrorPhase = "load" | "render" | "guard";
 
 export interface BeatRouteErrorEvent {
   readonly phase: BeatRouteErrorPhase;
@@ -110,6 +110,7 @@ export interface BeatRouter {
   resolve(to: string): URL;
   navigate(to: string, options?: BeatNavigateOptions): void;
   prefetch(to: string): Promise<void>;
+  /** Invalidate a canonical URL key directly (no guards/redirects), or all keys. */
   invalidatePrefetch(to?: string): void;
   reload(): void;
   back(): void;
@@ -319,7 +320,7 @@ function getMatchingRoutes(
 function buildParams(
   pathnameSegments: readonly string[],
   route: CompiledRoute,
-): Readonly<Record<string, string>> {
+): Readonly<Record<string, string>> | undefined {
   const params: Record<string, string> = {};
 
   for (const [index, segment] of route.segments.entries()) {
@@ -329,7 +330,12 @@ function buildParams(
 
     const current = pathnameSegments[index];
     if (current !== undefined) {
-      params[segment.slice(1)] = decodeURIComponent(current);
+      try {
+        params[segment.slice(1)] = decodeURIComponent(current);
+      } catch (error) {
+        if (error instanceof URIError) return undefined;
+        throw error;
+      }
     }
   }
 
@@ -418,7 +424,7 @@ function matchRoute(
     const leafRoute =
       primaryRoute.definitions[primaryRoute.definitions.length - 1];
 
-    if (leafRoute) {
+    if (leafRoute && params) {
       return {
         path: pathname || "/",
         fullPath: `${pathname || "/"}${url.search}`,
@@ -895,11 +901,14 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
   };
 
   const current = pulse<InternalBeatRouteMatch>(
-    matchRoute(new URL(targetWindow.location.href), compiledRoutes, basePath),
+    // A requested route becomes public only after all of its guards accept it.
+    matchRoute(new URL(targetWindow.location.href), [], basePath),
   );
   let router!: BeatRouter;
+  let disposed = false;
   let activeLoadToken = 0;
   let activeLoadControllers: AbortController[] = [];
+  let pendingPrefetchNavigation: { key: string; token: number; url: URL } | undefined;
   const prefetchCacheMaxEntries =
     options.prefetchCacheMaxEntries ?? DEFAULT_PREFETCH_CACHE_MAX_ENTRIES;
   const prefetchedRouteStates = new Map<string, InternalBeatPrefetchedState>();
@@ -908,15 +917,19 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
     {
       promise: Promise<void>;
       controllers: AbortController[];
+      cancelled: boolean;
     }
   >();
 
-  const abortActiveLoads = (): void => {
-    activeLoadToken += 1;
-    for (const controller of activeLoadControllers) {
+  const abortActiveLoads = (): number => {
+    const token = ++activeLoadToken;
+    const controllers = activeLoadControllers;
+    activeLoadControllers = [];
+    pendingPrefetchNavigation = undefined;
+    for (const controller of controllers) {
       controller.abort();
     }
-    activeLoadControllers = [];
+    return token;
   };
 
   const touchPrefetchedRouteState = (
@@ -959,15 +972,25 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
       return;
     }
 
+    activePrefetch.cancelled = true;
+    activePrefetches.delete(key);
+    const pending = pendingPrefetchNavigation;
     for (const controller of activePrefetch.controllers) {
       controller.abort();
     }
-
-    activePrefetches.delete(key);
+    if (
+      !disposed && pending && pending === pendingPrefetchNavigation &&
+      pending.key === key && pending.token === activeLoadToken
+    ) {
+      const token = abortActiveLoads();
+      if (!disposed && token === activeLoadToken) {
+        current.set(matchRoute(pending.url, [], basePath));
+      }
+    }
   };
 
   const abortAllActivePrefetches = (): void => {
-    for (const key of activePrefetches.keys()) {
+    for (const key of [...activePrefetches.keys()]) {
       abortActivePrefetch(key);
     }
   };
@@ -990,7 +1013,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
     let nextUrl = initialUrl;
     let replace = forceReplace;
 
-    for (let depth = 0; depth < MAX_REDIRECT_DEPTH; depth += 1) {
+    navigation: for (let depth = 0; depth < MAX_REDIRECT_DEPTH; depth += 1) {
       const match = matchRoute(nextUrl, compiledRoutes, basePath);
       const route = match.route;
 
@@ -1005,22 +1028,28 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
         continue;
       }
 
-      if (route?.beforeEnter) {
-        const guardResult = route.beforeEnter({
-          from,
-          to: match,
-          router,
-        });
-
-        if (guardResult === false) {
-          return undefined;
-        }
-
-        if (guardResult && guardResult !== true) {
-          const redirect = normalizeTarget(guardResult);
-          nextUrl = resolveUrl(redirect.to);
-          replace = replace || redirect.replace !== false;
-          continue;
+      const branches = [
+        getMainBranch(match),
+        ...match.namedOutlets.map((outlet) =>
+          getNamedOutletBranch(match, outlet.parentDepth, outlet.name),
+        ),
+      ];
+      for (const branch of branches) {
+        if (!branch) continue;
+        for (const [depthIndex, entry] of branch.matches.entries()) {
+          if (!entry.route.beforeEnter) continue;
+          const guardResult = entry.route.beforeEnter({
+            from,
+            to: createScopedMatch(router, match, branch, depthIndex),
+            router,
+          });
+          if (guardResult === false) return undefined;
+          if (guardResult && guardResult !== true) {
+            const redirect = normalizeTarget(guardResult);
+            nextUrl = resolveUrl(redirect.to);
+            replace = replace || redirect.replace !== false;
+            continue navigation;
+          }
         }
       }
 
@@ -1039,6 +1068,9 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
     writeHistory: boolean,
     usePrefetchedState = true,
   ): void => {
+    if (disposed) return;
+    const loadToken = abortActiveLoads();
+    if (disposed || loadToken !== activeLoadToken) return;
     if (writeHistory) {
       if (resolved.replace) {
         targetWindow.history.replaceState(null, "", resolved.url);
@@ -1066,43 +1098,41 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
         nextRouteDataStates,
         nextNamedRouteDataStates,
       );
+      pendingPrefetchNavigation = { key: prefetchKey, token: loadToken, url: resolved.url };
       current.set(decoratedMatch);
-      abortActiveLoads();
 
-      void activePrefetch.promise
-        .then(() => {
-          const currentMatch = current.get();
-          if (currentMatch.fullPath !== resolved.match.fullPath) {
-            return;
+      const resume = (): void => {
+        const currentMatch = current.get();
+        if (
+          disposed || loadToken !== activeLoadToken || activePrefetch.cancelled ||
+          currentMatch.fullPath !== resolved.match.fullPath
+        ) return;
+        let fresh: BeatResolvedNavigation | undefined;
+        try {
+          fresh = resolveNavigation(resolved.url, currentMatch, resolved.replace);
+        } catch (error) {
+          if (disposed || loadToken !== activeLoadToken) return;
+          const token = abortActiveLoads();
+          if (disposed || token !== activeLoadToken) return;
+          current.set(matchRoute(resolved.url, [], basePath));
+          if (disposed || token !== activeLoadToken) return;
+          router.onError?.({
+            phase: "guard", error, match: currentMatch,
+            ...(currentMatch.route ? { route: currentMatch.route } : {}),
+          });
+          return;
+        }
+        if (disposed || loadToken !== activeLoadToken) return;
+        if (!fresh) {
+          const token = abortActiveLoads();
+          if (!disposed && token === activeLoadToken) {
+            current.set(matchRoute(resolved.url, [], basePath));
           }
-
-          const prefetchedState = getPrefetchedRouteState(prefetchKey);
-          if (
-            prefetchedState &&
-            isPrefetchedStateCompatible(resolved.match, prefetchedState)
-          ) {
-            current.set(
-              decorateRouteMatch(
-                resolved.match,
-                cloneRouteDataStates(prefetchedState.routeDataStates),
-                cloneNamedRouteDataStates(
-                  prefetchedState.namedOutletRouteDataStates,
-                ),
-              ),
-            );
-            return;
-          }
-
-          applyResolvedNavigation(resolved, false, false);
-        })
-        .catch(() => {
-          const currentMatch = current.get();
-          if (currentMatch.fullPath !== resolved.match.fullPath) {
-            return;
-          }
-
-          applyResolvedNavigation(resolved, false, false);
-        });
+          return;
+        }
+        applyResolvedNavigation(fresh, false);
+      };
+      void activePrefetch.promise.then(resume, resume);
       return;
     }
 
@@ -1120,7 +1150,6 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
         cloneNamedRouteDataStates(prefetchedState.namedOutletRouteDataStates),
       );
       current.set(decoratedPrefetchedMatch);
-      abortActiveLoads();
       return;
     }
 
@@ -1137,10 +1166,8 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
     );
     current.set(decoratedMatch);
 
-    abortActiveLoads();
-    const loadToken = activeLoadToken;
-
     for (const target of collectLoadTargets(decoratedMatch)) {
+      if (disposed || loadToken !== activeLoadToken) return;
       const controller = new AbortController();
       activeLoadControllers.push(controller);
       void target.route.load!(
@@ -1198,6 +1225,9 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
             ),
             ...(target.outlet ? { outlet: target.outlet } : {}),
           });
+          if (disposed || controller.signal.aborted || loadToken !== activeLoadToken) {
+            return;
+          }
           applyLoadTargetState(nextStates, nextNamedStates, target, {
             status: "rejected",
             loading: false,
@@ -1214,6 +1244,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
   const prefetchResolvedNavigation = (
     resolved: BeatResolvedNavigation,
   ): Promise<void> => {
+    if (disposed) return Promise.resolve();
     const key = resolved.match.fullPath;
     const cachedState = getPrefetchedRouteState(key);
     if (
@@ -1240,9 +1271,18 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
       namedOutletRouteDataStates,
     );
     const controllers: AbortController[] = [];
+    let complete!: () => void;
+    let fail!: (error: unknown) => void;
+    const promise = new Promise<void>((resolve, reject) => {
+      complete = resolve;
+      fail = reject;
+    });
+    const entry = { promise, controllers, cancelled: false };
+    activePrefetches.set(key, entry);
 
-    const promise = Promise.all(
+    void Promise.all(
       collectLoadTargets(prefetchedMatch).map(async (target) => {
+        if (disposed || entry.cancelled) return;
         const controller = new AbortController();
         controllers.push(controller);
 
@@ -1257,7 +1297,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
             controller.signal,
           );
 
-          if (controller.signal.aborted) {
+          if (disposed || entry.cancelled || controller.signal.aborted) {
             return;
           }
 
@@ -1273,7 +1313,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
             },
           );
         } catch (error) {
-          if (controller.signal.aborted) {
+          if (disposed || entry.cancelled || controller.signal.aborted) {
             return;
           }
 
@@ -1295,7 +1335,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
       }),
     )
       .then(() => {
-        if (controllers.some((controller) => controller.signal.aborted)) {
+        if (disposed || entry.cancelled || controllers.some((controller) => controller.signal.aborted)) {
           return;
         }
 
@@ -1306,19 +1346,22 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
           ),
         });
       })
-      .finally(() => {
-        activePrefetches.delete(key);
-      });
-
-    activePrefetches.set(key, {
-      promise,
-      controllers,
-    });
+      .then(
+        () => {
+          if (activePrefetches.get(key) === entry) activePrefetches.delete(key);
+          complete();
+        },
+        (error: unknown) => {
+          if (activePrefetches.get(key) === entry) activePrefetches.delete(key);
+          fail(error);
+        },
+      );
 
     return promise;
   };
 
   const sync = (usePrefetchedState = true): void => {
+    if (disposed) return;
     const from = current.get();
     const resolved = resolveNavigation(
       new URL(targetWindow.location.href),
@@ -1348,6 +1391,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
       return resolveUrl(to);
     },
     navigate(to: string, options?: BeatNavigateOptions): void {
+      if (disposed) return;
       const resolved = resolveNavigation(
         resolveUrl(to),
         current.get(),
@@ -1361,6 +1405,7 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
       applyResolvedNavigation(resolved, true);
     },
     prefetch(to: string): Promise<void> {
+      if (disposed) return Promise.resolve();
       const resolved = resolveNavigation(resolveUrl(to), current.get(), true);
 
       if (!resolved) {
@@ -1370,28 +1415,27 @@ export function createRouter(options: CreateBeatRouterOptions): BeatRouter {
       return prefetchResolvedNavigation(resolved);
     },
     invalidatePrefetch(to?: string): void {
+      if (disposed) return;
       if (to === undefined) {
         abortAllActivePrefetches();
         prefetchedRouteStates.clear();
         return;
       }
 
-      const resolved = resolveNavigation(resolveUrl(to), current.get(), true);
-
-      if (!resolved) {
-        return;
-      }
-
-      abortActivePrefetch(resolved.match.fullPath);
-      prefetchedRouteStates.delete(resolved.match.fullPath);
+      const key = matchRoute(resolveUrl(to), compiledRoutes, basePath).fullPath;
+      prefetchedRouteStates.delete(key);
+      abortActivePrefetch(key);
     },
     reload(): void {
       sync(false);
     },
     back(): void {
+      if (disposed) return;
       targetWindow.history.back();
     },
     dispose(): void {
+      if (disposed) return;
+      disposed = true;
       abortActiveLoads();
       abortAllActivePrefetches();
       prefetchedRouteStates.clear();
