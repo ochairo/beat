@@ -45,12 +45,15 @@ function createPropertyWriter(
       return;
     }
 
-    if (propertyName === "value") {
+    if (propertyName === "value" || propertyName === "textContent") {
       dynamicElement[propertyName] = "";
       return;
     }
 
-    if (propertyName === "checked" || propertyName === "selected") {
+    if (
+      propertyName === "checked" || propertyName === "selected" ||
+      propertyName === "indeterminate"
+    ) {
       dynamicElement[propertyName] = false;
     }
   };

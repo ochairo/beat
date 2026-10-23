@@ -6,10 +6,51 @@ import {
   bindText,
   type BeatRendered,
 } from "../src/dom.js";
-import { jsx } from "../src/jsx-runtime.js";
+import { jsx, toRendered } from "../src/jsx-runtime.js";
 import { For, Show } from "../src/index.js";
 
 describe("dom bindings", () => {
+  it.each([undefined, null])("clears a bound indeterminate property on %s", (empty) => {
+    const state = pulse<boolean | null | undefined>(true);
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    const cleanup = bindProperty(checkbox, "indeterminate", state);
+    expect(checkbox.indeterminate).toBe(true);
+
+    state.set(empty);
+    expect(checkbox.indeterminate).toBe(false);
+    expect(checkbox.hasAttribute("indeterminate")).toBe(false);
+
+    state.set(true);
+    expect(checkbox.indeterminate).toBe(true);
+    cleanup();
+  });
+
+  it.each([undefined, null])("clears bound textContent on %s", (empty) => {
+    const state = pulse<string | null | undefined>("previous text");
+    const element = document.createElement("div");
+    const cleanup = bindProperty(element, "textContent", state);
+    expect(element.textContent).toBe("previous text");
+
+    state.set(empty);
+    expect(element.textContent).toBe("");
+    expect(element.hasAttribute("textContent")).toBe(false);
+
+    state.set("next text");
+    expect(element.textContent).toBe("next text");
+    cleanup();
+  });
+
+  it.each([undefined, null])("removes a reflected bound id on %s", (empty) => {
+    const state = pulse<string | null | undefined>("previous-id");
+    const element = document.createElement("div");
+    const cleanup = bindProperty(element, "id", state);
+    state.set(empty);
+    expect(element.id).toBe("");
+    expect(element.hasAttribute("id")).toBe(false);
+    cleanup();
+  });
+
   it("preserves false and true ARIA tokens in direct reactive bindings", () => {
     const expanded = pulse<boolean | undefined>(false);
     const element = document.createElement("button");
@@ -24,7 +65,7 @@ describe("dom bindings", () => {
 
   it("serializes static and reactive JSX ARIA booleans without changing HTML booleans", () => {
     const expanded = pulse(false);
-    const rendered = jsx("button", { "aria-expanded": expanded, "aria-hidden": true, disabled: true });
+    const rendered = toRendered(jsx("button", { "aria-expanded": expanded, "aria-hidden": true, disabled: true }));
     const element = rendered.node as HTMLButtonElement;
     expect(element.getAttribute("aria-expanded")).toBe("false");
     expect(element.getAttribute("aria-hidden")).toBe("true");

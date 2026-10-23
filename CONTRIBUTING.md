@@ -4,7 +4,7 @@ Thanks for your interest in contributing to Beat.
 
 ## Prerequisites
 
-- Node.js `>=24 <25`
+- Node.js `^24.22.1 || >=26.12.1`
 - pnpm `>=10`
 
 ## Setup

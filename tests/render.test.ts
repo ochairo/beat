@@ -1,6 +1,6 @@
 import { derived, pulse } from "@ochairo/pulse";
 import { describe, expect, it } from "vitest";
-import { jsx } from "../src/jsx-runtime.js";
+import { jsx, toRendered } from "../src/jsx-runtime.js";
 import {
   component,
   createRoot,
@@ -11,6 +11,46 @@ import {
 } from "../src/index.js";
 
 describe("render root", () => {
+  it.each([undefined, null])("clears reactive JSX indeterminate on %s", (empty) => {
+    const state = pulse<boolean | null | undefined>(true);
+    const rendered = toRendered(jsx("input", { type: "checkbox", indeterminate: state }));
+    const checkbox = rendered.node as HTMLInputElement;
+    expect(checkbox.indeterminate).toBe(true);
+
+    state.set(empty);
+    expect(checkbox.indeterminate).toBe(false);
+    expect(checkbox.hasAttribute("indeterminate")).toBe(false);
+
+    state.set(true);
+    expect(checkbox.indeterminate).toBe(true);
+    rendered.cleanup?.();
+  });
+
+  it.each([undefined, null])("clears reactive JSX textContent on %s", (empty) => {
+    const state = pulse<string | null | undefined>("previous text");
+    const rendered = toRendered(jsx("div", { textContent: state }));
+    const element = rendered.node as HTMLDivElement;
+    expect(element.textContent).toBe("previous text");
+
+    state.set(empty);
+    expect(element.textContent).toBe("");
+    expect(element.hasAttribute("textContent")).toBe(false);
+
+    state.set("next text");
+    expect(element.textContent).toBe("next text");
+    rendered.cleanup?.();
+  });
+
+  it.each([undefined, null])("removes a reflected reactive JSX id on %s", (empty) => {
+    const state = pulse<string | null | undefined>("previous-id");
+    const rendered = toRendered(jsx("div", { id: state }));
+    const element = rendered.node as HTMLDivElement;
+    state.set(empty);
+    expect(element.id).toBe("");
+    expect(element.hasAttribute("id")).toBe(false);
+    rendered.cleanup?.();
+  });
+
   it("creates a root that replaces the previous rendered scope", () => {
     const target = document.createElement("div");
     const root = createRoot(target);
@@ -117,7 +157,7 @@ describe("onMount", () => {
 
     expect(order).toEqual(["setup", "return", "after-render"]);
 
-    await new Promise((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
 
     expect(order).toEqual(["setup", "return", "after-render", "mount"]);
   });
@@ -146,7 +186,7 @@ describe("onMount", () => {
     expect(refElement).toBeInstanceOf(HTMLSpanElement);
     expect(mountedElement).toBeUndefined();
 
-    await new Promise((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
 
     expect(mountedElement).toBeInstanceOf(HTMLSpanElement);
 
