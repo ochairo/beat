@@ -9,8 +9,11 @@ importers:
   .:
     dependencies:
       '@ochairo/pulse':
-        specifier: ^1.6.10
-        version: 1.6.10
+        specifier: ^2.0.0
+        version: 2.0.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
@@ -21,9 +24,6 @@ importers:
       happy-dom:
         specifier: ^20.14.6
         version: 20.14.6
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
       vite:
         specifier: ^7.3.7
         version: 7.3.7(@types/node@24.19.2)(lightningcss@1.32.0)
@@ -199,9 +199,9 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@ochairo/pulse@1.6.10':
-    resolution: {integrity: sha512-mwR0rNcYD5yRoKcyvD3bHi4gO3DRHN5W89kt7ZDtRGGL1pvm/+etwfnFStTVw+/v2xbKB/HEjvlB4Sxd8SeD+Q==}
-    engines: {node: '>=20.0.0'}
+  '@ochairo/pulse@2.0.0':
+    resolution: {integrity: sha512-//DPSJqrq7/x6DD7ug2mfssMpccFiQtW4VEPWGO90jRvrjFKvbDdfdeB2nwanofqEKOh4k5E7LGmarkNu5/oSg==}
+    engines: {node: ^24.22.1 || >=26.12.1}
 
   '@rollup/rollup-android-arm-eabi@4.65.0':
     resolution: {integrity: sha512-t2AnVba25baFdq7gczzS13JyVcdubLVbFX1X04mxrggDrTQPUXNv3XM0k9H1hr5tqvg7AVvtQ720QHAj0iYqhg==}
@@ -775,7 +775,7 @@ snapshots:
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
 
-  '@ochairo/pulse@1.6.10': {}
+  '@ochairo/pulse@2.0.0': {}
 
   '@rollup/rollup-android-arm-eabi@4.65.0':
     optional: true

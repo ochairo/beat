@@ -62,6 +62,12 @@ function createPropertyWriter(
       return;
     }
 
+    // ARIA boolean values are explicit tokens, unlike HTML boolean attributes.
+    if (propertyName.startsWith("aria-") && typeof value === "boolean") {
+      element.setAttribute(propertyName, String(value));
+      return;
+    }
+
     if (value === false) {
       element.removeAttribute(propertyName);
       if (writeAsProperty) {

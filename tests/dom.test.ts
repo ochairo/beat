@@ -10,6 +10,32 @@ import { jsx } from "../src/jsx-runtime.js";
 import { For, Show } from "../src/index.js";
 
 describe("dom bindings", () => {
+  it("preserves false and true ARIA tokens in direct reactive bindings", () => {
+    const expanded = pulse<boolean | undefined>(false);
+    const element = document.createElement("button");
+    const cleanup = bindProperty(element, "aria-expanded", expanded);
+    expect(element.getAttribute("aria-expanded")).toBe("false");
+    expanded.set(true);
+    expect(element.getAttribute("aria-expanded")).toBe("true");
+    expanded.set(undefined);
+    expect(element.hasAttribute("aria-expanded")).toBe(false);
+    cleanup();
+  });
+
+  it("serializes static and reactive JSX ARIA booleans without changing HTML booleans", () => {
+    const expanded = pulse(false);
+    const rendered = jsx("button", { "aria-expanded": expanded, "aria-hidden": true, disabled: true });
+    const element = rendered.node as HTMLButtonElement;
+    expect(element.getAttribute("aria-expanded")).toBe("false");
+    expect(element.getAttribute("aria-hidden")).toBe("true");
+    expect(element.disabled).toBe(true);
+    expanded.set(true);
+    expect(element.getAttribute("aria-expanded")).toBe("true");
+    expanded.set(false);
+    expect(element.getAttribute("aria-expanded")).toBe("false");
+    rendered.cleanup?.();
+  });
+
   it("bindText updates the same text node when the pulse changes", () => {
     const count = pulse(1);
     const binding = bindText(count, (value) => `${value}`);

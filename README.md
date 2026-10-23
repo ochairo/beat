@@ -26,6 +26,20 @@ The public model stays explicit:
 - **Explicit router and resources** — routing state and async state stay in normal userland APIs
 - **Shared client/server model** — the same component tree and router power rendering, hydration, and SSR
 
+## Upgrading to 2.0.0
+
+Node.js consumers now require Node 24.22.1 or later within the 24.x line, or
+Node 26.12.1 or later. Beat now depends on Pulse 2; update direct
+`@ochairo/pulse` dependencies to `^2.0.0` as well.
+The Vite plugin declares Vite `^7.3.7 || ^8.3.5` as an optional peer and includes
+its TypeScript compiler dependency. Runtime-only applications do not need Vite.
+
+Route guards now cover initial URLs, parents, named branches, and prefetch reuse.
+Update exhaustive `BeatRouteErrorPhase` switches to handle `"guard"`.
+SSR rejects unsafe raw-text contexts and literal `<` in raw-text content;
+follow the [SSR security boundaries](#ssr-security-boundaries) when migrating
+inline scripts, styles, or serialized data.
+
 ## Scaffold
 
 Start a new app with the scaffolder:
