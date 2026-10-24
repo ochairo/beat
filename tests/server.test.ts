@@ -14,6 +14,11 @@ import {
 import { renderToString, waitForRouter } from "../src/server.js";
 
 describe("renderToString", () => {
+  it("preserves explicit ARIA boolean values in serialized HTML", () => {
+    expect(renderToString(() => jsx("button", { "aria-expanded": false, "aria-hidden": true })))
+      .toBe('<button aria-expanded="false" aria-hidden="true"></button>');
+  });
+
   it("serializes a plain element to HTML", () => {
     const html = renderToString(() =>
       jsx("div", { class: "app", children: "hello" }),
